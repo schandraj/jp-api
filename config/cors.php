@@ -17,9 +17,9 @@ return [
 
     'paths' => ['api/*', 'sanctum/csrf-cookie'],
 
-    'allowed_methods' => ['http://localhost:3000', 'http://stg-lms.jadipraktisi.com'],
+    'allowed_methods' => ['*'],
 
-    'allowed_origins' => [],
+    'allowed_origins' => ['http://localhost:3000', 'http://stg-lms.jadipraktisi.com'],
 
     'allowed_origins_patterns' => [],
 
