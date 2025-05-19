@@ -6,6 +6,11 @@ use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Middleware\AdminOnly;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
+
+Route::options('/{any}', function () {
+    return response()->json(['status' => 'OK']);
+})->where('any', '.*');
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
