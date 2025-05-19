@@ -14,13 +14,13 @@ class CorsMiddleware
 
         $allowedOrigins = [
             'http://localhost:3000',
-            'https://yourfrontend.com',
+            'https://stg-lms.jadipraktisi.com',
         ];
 
         $response = $next($request);
 
         if ($origin && in_array($origin, $allowedOrigins)) {
-            $response->headers->set('Access-Control-Allow-Origin', '*');
+            $response->headers->set('Access-Control-Allow-Origin', $allowedOrigins);
             $response->headers->set('Access-Control-Allow-Credentials', 'true');
             $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
             $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
