@@ -25,21 +25,18 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'firstname' => 'required|string',
-            'lastname' => 'required|string',
-            'username' => 'required|string|unique:users',
+            'fullname' => 'required|string',
             'email' => 'required|email|unique:users',
-            'phone_number' => 'nullable|string',
+            'phone_number' => 'required|string|unique:users',
             'password' => 'required|string|min:6',
         ]);
 
         $user = User::create([
-            'firstname' => $request->firstname,
-            'lastname' => $request->lastname,
-            'username' => $request->username,
+            'fullname' => $request->fullname,
             'email' => $request->email,
             'phone_number' => $request->phone_number,
             'password' => Hash::make($request->password),
+            'role' => 'user',
         ]);
 
         return response()->json($user, 201);
@@ -50,16 +47,14 @@ class UserController extends Controller
         $user = User::findOrFail($id);
 
         $request->validate([
-            'firstname' => 'sometimes|string',
-            'lastname' => 'sometimes|string',
-            'username' => 'sometimes|string|unique:users,username,' . $id,
+            'fullname' => 'sometimes|string',
             'email' => 'sometimes|email|unique:users,email,' . $id,
-            'phone_number' => 'nullable|string',
+            'phone_number' => 'sometimes|string|unique:users,phone_number,' . $id,
             'password' => 'nullable|string|min:6',
         ]);
 
         $data = $request->only([
-            'firstname', 'lastname', 'username', 'email', 'phone_number'
+            'fullname', 'email', 'phone_number'
         ]);
 
         if ($request->filled('password')) {

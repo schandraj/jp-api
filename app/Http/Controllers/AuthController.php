@@ -15,21 +15,18 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'firstname' => 'required|string|max:255',
-            'lastname' => 'required|string|max:255',
-            'username' => 'required|string|max:255|unique:users',
+            'fullname' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'phone_number' => 'nullable|string|max:15',
+            'phone_number' => 'required|string|unique:users',
             'password' => 'required|string|min:6|confirmed',
         ]);
 
         $user = User::create([
-            'firstname' => $request->firstname,
-            'lastname' => $request->lastname,
-            'username' => $request->username,
+            'fullname' => $request->fullname,
             'email' => $request->email,
             'phone_number' => $request->phone_number,
             'password' => Hash::make($request->password),
+            'role' => 'user',
         ]);
 
         return response()->json(['message' => 'Registered successfully']);
@@ -41,7 +38,7 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        $user = User::where('username', 'admin')->first();
+        $user = User::where('role', 'admin')->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json(['message' => 'The provided credentials are incorrect.'], 200);
@@ -61,7 +58,6 @@ class AuthController extends Controller
         ]);
 
         $user = User::where('email', $request->login)
-            ->orWhere('username', $request->login)
             ->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
