@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\Admin\BenefitController;
+use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\CourseController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\GoogleAuthController;
@@ -21,4 +24,8 @@ Route::get('/auth/callback/google', [GoogleAuthController::class, 'callback']);
 
 Route::middleware(['auth:sanctum', AdminOnly::class])->prefix('admin')->group(function () {
     Route::apiResource('users', AdminUserController::class);
+//    Route::post('/courses', [CourseController::class, 'store']);
+    Route::apiResource('categories', CategoryController::class);
+    Route::apiResource('benefits', BenefitController::class);
+    Route::apiResource('courses', CourseController::class);
 });
