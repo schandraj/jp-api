@@ -33,4 +33,9 @@ class Course extends Model
     {
         return $this->hasMany(CourseCrossSell::class);
     }
+
+    public function benefits()
+    {
+        return $this->belongsToMany(Benefit::class, 'course_benefit');
+    }
 }

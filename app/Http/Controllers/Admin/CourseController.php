@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\Validator;
 
 class CourseController extends Controller
 {
+    /**
+     * Store a newly created course.
+     */
     public function store(Request $request)
     {
         // Decode JSON strings for array fields
@@ -36,8 +39,14 @@ class CourseController extends Controller
                 return response()->json(['cross_sell' => 'Invalid JSON format for cross_sell'], 422);
             }
         }
+        if ($request->has('benefits')) {
+            $input['benefits'] = json_decode($request->input('benefits'), true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return response()->json(['benefits' => 'Invalid JSON format for benefits'], 422);
+            }
+        }
 
-        // Validate the modified input
+        // Validate the input
         $validator = Validator::make($input, [
             'title' => 'required|string|max:255',
             'category_id' => 'required|exists:categories,id',
@@ -64,6 +73,8 @@ class CourseController extends Controller
             'cross_sell' => 'nullable|array',
             'cross_sell.*.cross_course_id' => 'required|exists:courses,id',
             'cross_sell.*.note' => 'nullable|string',
+            'benefits' => 'nullable|array',
+            'benefits.*.benefit_id' => 'required|exists:benefits,id',
         ]);
 
         if ($validator->fails()) {
@@ -123,11 +134,17 @@ class CourseController extends Controller
                 }
             }
 
+            // Sync benefits
+            if (!empty($input['benefits'])) {
+                $benefitIds = array_column($input['benefits'], 'benefit_id');
+                $course->benefits()->sync($benefitIds);
+            }
+
             DB::commit();
 
             return response()->json([
                 'message' => 'Course created successfully',
-                'data' => $course->load(['topics.lessons', 'crossSells']),
+                'data' => $course->load(['topics.lessons', 'crossSells', 'benefits']),
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -137,18 +154,32 @@ class CourseController extends Controller
     }
 
     /**
-     * Display a listing of courses with pagination.
+     * Display a listing of courses with pagination and custom limit.
      */
-    public function index()
+    public function index(Request $request)
     {
         try {
-            $courses = Course::with(['category', 'topics.lessons', 'crossSells'])
-                ->paginate(10);
+            // Validate the limit parameter
+            $validator = Validator::make($request->all(), [
+                'limit' => 'sometimes|integer|min:1|max:100',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json($validator->errors(), 422);
+            }
+
+            // Set default limit if not provided
+            $limit = $request->input('limit', 10);
+
+            $courses = Course::with(['category', 'topics.lessons', 'crossSells', 'benefits'])
+                ->paginate($limit);
+
             return response()->json([
                 'message' => 'Courses retrieved successfully',
                 'data' => $courses
             ], 200);
-        } catch (\Exception $e) {
+        }
+        catch (\Exception $e) {
             return response()->json(['error' => 'Failed to retrieve courses: ' . $e->getMessage()], 500);
         }
     }
@@ -159,7 +190,7 @@ class CourseController extends Controller
     public function show($id)
     {
         try {
-            $course = Course::with(['category', 'topics.lessons', 'crossSells'])
+            $course = Course::with(['category', 'topics.lessons', 'crossSells', 'benefits'])
                 ->findOrFail($id);
             return response()->json([
                 'message' => 'Course retrieved successfully',
@@ -195,6 +226,12 @@ class CourseController extends Controller
                 return response()->json(['cross_sell' => 'Invalid JSON format for cross_sell'], 422);
             }
         }
+        if ($request->has('benefits')) {
+            $input['benefits'] = json_decode($request->input('benefits'), true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return response()->json(['benefits' => 'Invalid JSON format for benefits'], 422);
+            }
+        }
 
         // Validate the input (all fields optional except required ones)
         $validator = Validator::make($input, [
@@ -223,6 +260,8 @@ class CourseController extends Controller
             'cross_sell' => 'nullable|array',
             'cross_sell.*.cross_course_id' => 'required|exists:courses,id',
             'cross_sell.*.note' => 'nullable|string',
+            'benefits' => 'nullable|array',
+            'benefits.*.benefit_id' => 'required|exists:benefits,id',
         ]);
 
         if ($validator->fails()) {
@@ -301,11 +340,17 @@ class CourseController extends Controller
                 }
             }
 
+            // Sync benefits
+            if (isset($input['benefits'])) {
+                $benefitIds = array_column($input['benefits'], 'benefit_id');
+                $course->benefits()->sync($benefitIds);
+            }
+
             DB::commit();
 
             return response()->json([
                 'message' => 'Course updated successfully',
-                'data' => $course->load(['topics.lessons', 'crossSells']),
+                'data' => $course->load(['topics.lessons', 'crossSells', 'benefits']),
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -325,7 +370,7 @@ class CourseController extends Controller
             $course = Course::findOrFail($id);
             $imagePath = $course->image;
 
-            // Delete the course (cascades to topics, lessons, and cross-sells)
+            // Delete the course (cascades to topics, lessons, cross-sells, and benefits)
             $course->delete();
 
             // Delete the associated image
