@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -23,6 +24,11 @@ class User extends Authenticatable
         'email',
         'role',
         'phone_number',
+        'nik',
+        'address',
+        'profession',
+        'bio',
+        'profile_picture',
         'password',
     ];
 
@@ -47,5 +53,15 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Get the URL for the profile picture.
+     *
+     * @return string|null
+     */
+    public function getProfilePictureUrlAttribute()
+    {
+        return $this->profile_picture ? Storage::url($this->profile_picture) : null;
     }
 }
