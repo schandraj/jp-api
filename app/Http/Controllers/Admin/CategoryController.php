@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -27,12 +28,11 @@ class CategoryController extends Controller
             // Set default limit if not provided
             $limit = $request->input('limit', 10);
 
-            $courses = Course::with(['category', 'topics.lessons', 'crossSells'])
-                ->paginate($limit);
+            $categories = Category::paginate($limit);
 
             return response()->json([
-                'message' => 'Courses retrieved successfully',
-                'data' => $courses
+                'message' => 'Categories retrieved successfully',
+                'data' => $categories
             ], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to retrieve courses: ' . $e->getMessage()], 500);

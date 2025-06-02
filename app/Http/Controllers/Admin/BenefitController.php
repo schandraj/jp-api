@@ -12,9 +12,20 @@ class BenefitController extends Controller
     /**
      * Display a listing of benefits.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $benefits = Benefit::paginate(10);
+        // Validate the limit parameter
+        $validator = Validator::make($request->all(), [
+            'limit' => 'sometimes|integer|min:1|max:100',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        // Set default limit if not provided`
+        $limit = $request->input('limit', 10);
+        $benefits = Benefit::paginate($limit);
         return response()->json([
             'message' => 'Benefits retrieved successfully',
             'data' => $benefits
