@@ -103,6 +103,7 @@ class CourseController extends Controller
                 'price' => $input['price'],
                 'discount_type' => $input['discount_type'],
                 'discount' => $input['discount'],
+                'status' => $input['status'] ?? 'UNPUBLISHED',
             ]);
 
             // Create topics and lessons
@@ -262,6 +263,7 @@ class CourseController extends Controller
             'cross_sell.*.note' => 'nullable|string',
             'benefits' => 'nullable|array',
             'benefits.*.benefit_id' => 'required|exists:benefits,id',
+            'status' => 'sometimes|required|in:DRAFT,UNPUBLISHED,PUBLISHED',
         ]);
 
         if ($validator->fails()) {
@@ -381,6 +383,32 @@ class CourseController extends Controller
             return response()->json(['message' => 'Course deleted successfully'], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to delete course: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Publish a course.
+     */
+    public function publish(Request $request, $id)
+    {
+        try {
+            $course = Course::findOrFail($id);
+
+            DB::beginTransaction();
+
+            $course->update([
+                'status' => 'PUBLISHED',
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Course published successfully',
+                'data' => $course
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => 'Failed to publish course: ' . $e->getMessage()], 500);
         }
     }
 }

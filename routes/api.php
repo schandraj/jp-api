@@ -28,4 +28,5 @@ Route::middleware(['auth:sanctum', AdminOnly::class])->prefix('admin')->group(fu
     Route::apiResource('categories', CategoryController::class);
     Route::apiResource('benefits', BenefitController::class);
     Route::apiResource('courses', CourseController::class);
+    Route::post('courses/{course}/publish', [CourseController::class, 'publish']);
 });
