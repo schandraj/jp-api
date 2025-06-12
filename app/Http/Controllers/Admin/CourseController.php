@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Course;
 use App\Models\CourseCrossSell;
+use App\Models\CourseQuestion;
 use App\Models\CourseTopic;
+use App\Models\QuestionAnswer;
 use App\Models\TopicLesson;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,30 +21,20 @@ class CourseController extends Controller
      */
     public function store(Request $request)
     {
+        // Log raw input for debugging
+        \Log::info('Store course request:', $request->all());
+
         // Decode JSON strings for array fields
         $input = $request->all();
-        if ($request->has('topic')) {
-            $input['topic'] = json_decode($request->input('topic'), true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json(['topic' => 'Invalid JSON format for topic'], 422);
-            }
-        }
-        if ($request->has('slug')) {
-            $input['slug'] = json_decode($request->input('slug'), true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json(['slug' => 'Invalid JSON format for slug'], 422);
-            }
-        }
-        if ($request->has('cross_sell')) {
-            $input['cross_sell'] = json_decode($request->input('cross_sell'), true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json(['cross_sell' => 'Invalid JSON format for cross_sell'], 422);
-            }
-        }
-        if ($request->has('benefits')) {
-            $input['benefits'] = json_decode($request->input('benefits'), true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json(['benefits' => 'Invalid JSON format for benefits'], 422);
+        $jsonFields = ['topic', 'slug', 'cross_sell', 'benefits', 'questions'];
+        foreach ($jsonFields as $field) {
+            if ($request->has($field)) {
+                $input[$field] = json_decode($request->input($field), true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    return response()->json([$field => "Invalid JSON format for $field"], 422);
+                }
+            } else {
+                $input[$field] = []; // Default to empty array if not provided
             }
         }
 
@@ -52,40 +44,53 @@ class CourseController extends Controller
             'category_id' => 'required|exists:categories,id',
             'course_level' => 'required|in:BEGINNER,INTERMEDIATE,ADVANCE,EXPERT',
             'max_student' => 'required|integer|min:1',
-            'is_public' => 'required|boolean',
+            'is_public' => 'nullable|boolean',
             'short_description' => 'required|string',
             'description' => 'nullable|string',
             'thumbnail' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+            'poster' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'link_ebook' => 'nullable|url',
             'link_group' => 'nullable|string',
-            'slug' => 'required|array',
+            'slug' => 'nullable|array',
             'slug.*' => 'string',
             'price' => 'required|numeric|min:0',
             'discount_type' => 'nullable|in:PERCENTAGE,NOMINAL',
             'discount' => 'nullable|numeric|min:0',
-            'topic' => 'required|array',
-            'topic.*.name' => 'required|string',
-            'topic.*.lesson' => 'required|array',
-            'topic.*.lesson.*.name' => 'required|string',
+            'type' => 'required|in:Course,Live_Teaching,CBT',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'duration' => 'nullable|integer|min:0',
+            'topic' => 'nullable|array',
+            'topic.*.name' => 'required_with:topic|string',
+            'topic.*.lesson' => 'required_with:topic|array',
+            'topic.*.lesson.*.name' => 'required_with:topic.*.lesson|string',
             'topic.*.lesson.*.video_link' => 'nullable|url',
             'topic.*.lesson.*.description' => 'nullable|string',
-            'topic.*.lesson.*.is_premium' => 'required|boolean',
+            'topic.*.lesson.*.is_premium' => 'required_with:topic.*.lesson|boolean',
             'cross_sell' => 'nullable|array',
-            'cross_sell.*.cross_course_id' => 'required|exists:courses,id',
+            'cross_sell.*.cross_course_id' => 'required_with:cross_sell|exists:courses,id',
             'cross_sell.*.note' => 'nullable|string',
             'benefits' => 'nullable|array',
-            'benefits.*.benefit_id' => 'required|exists:benefits,id',
+            'benefits.*.benefit_id' => 'required_with:benefits|exists:benefits,id',
+            'questions' => 'nullable|array',
+            'questions.*.question' => 'required_with:questions|string',
+            'questions.*.discussion' => 'required_with:questions|string',
+            'questions.*.answers' => 'required_with:questions|array|min:1',
+            'questions.*.answers.*.choice' => 'required_with:questions.*.answers|string',
+            'questions.*.answers.*.is_true' => 'required_with:questions.*.answers|boolean',
         ]);
 
         if ($validator->fails()) {
+            \Log::error('Validation errors:', $validator->errors()->toArray());
             return response()->json($validator->errors(), 422);
         }
 
         try {
             DB::beginTransaction();
 
-            // Handle file upload
-            $imagePath = $request->file('thumbnail')->store('thumbnails', 'public');
+            // Handle file uploads
+            $thumbnailPath = $request->file('thumbnail')->store('thumbnails', 'public');
+            $posterPath = $request->hasFile('poster') ? $request->file('poster')->store('posters', 'public') : null;
 
             // Create course
             $course = Course::create([
@@ -93,17 +98,22 @@ class CourseController extends Controller
                 'category_id' => $input['category_id'],
                 'course_level' => $input['course_level'],
                 'max_student' => $input['max_student'],
-                'is_public' => $input['is_public'],
+                'is_public' => $input['is_public'] ?? false,
                 'short_description' => $input['short_description'],
-                'description' => $input['description'],
-                'image' => $imagePath,
-                'link_ebook' => $input['link_ebook'],
-                'link_group' => $input['link_group'],
+                'description' => $input['description'] ?? null,
+                'thumbnail' => $thumbnailPath,
+                'poster' => $posterPath,
+                'link_ebook' => $input['link_ebook'] ?? null,
+                'link_group' => $input['link_group'] ?? null,
                 'slug' => $input['slug'],
                 'price' => $input['price'],
-                'discount_type' => $input['discount_type'],
-                'discount' => $input['discount'],
+                'discount_type' => $input['discount_type'] ?? null,
+                'discount' => $input['discount'] ?? null,
                 'status' => $input['status'] ?? 'UNPUBLISHED',
+                'type' => $input['type'],
+                'start_date' => $input['start_date'] ?? null,
+                'end_date' => $input['end_date'] ?? null,
+                'duration' => $input['duration'] ?? null,
             ]);
 
             // Create topics and lessons
@@ -117,9 +127,26 @@ class CourseController extends Controller
                     TopicLesson::create([
                         'topic_id' => $topic->id,
                         'name' => $lessonData['name'],
-                        'video_link' => $lessonData['video_link'],
-                        'description' => $lessonData['description'],
+                        'video_link' => $lessonData['video_link'] ?? null,
+                        'description' => $lessonData['description'] ?? null,
                         'is_premium' => $lessonData['is_premium'],
+                    ]);
+                }
+            }
+
+            // Create questions and answers
+            foreach ($input['questions'] as $questionData) {
+                $question = CourseQuestion::create([
+                    'course_id' => $course->id,
+                    'question' => $questionData['question'],
+                    'discussion' => $questionData['discussion'],
+                ]);
+
+                foreach ($questionData['answers'] as $answerData) {
+                    QuestionAnswer::create([
+                        'question_id' => $question->id,
+                        'choice' => $answerData['choice'],
+                        'is_true' => $answerData['is_true'],
                     ]);
                 }
             }
@@ -130,7 +157,7 @@ class CourseController extends Controller
                     CourseCrossSell::create([
                         'course_id' => $course->id,
                         'cross_course_id' => $crossSellData['cross_course_id'],
-                        'note' => $crossSellData['note'],
+                        'note' => $crossSellData['note'] ?? null,
                     ]);
                 }
             }
@@ -145,11 +172,17 @@ class CourseController extends Controller
 
             return response()->json([
                 'message' => 'Course created successfully',
-                'data' => $course->load(['topics.lessons', 'crossSells', 'benefits']),
+                'data' => $course->load(['topics.lessons', 'crossSells', 'benefits', 'questions.answers']),
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            Storage::disk('public')->delete($imagePath);
+            if (isset($thumbnailPath)) {
+                Storage::disk('public')->delete($thumbnailPath);
+            }
+            if (isset($posterPath)) {
+                Storage::disk('public')->delete($posterPath);
+            }
+            \Log::error('Course creation failed:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return response()->json(['error' => 'Failed to create course: ' . $e->getMessage()], 500);
         }
     }
@@ -160,27 +193,37 @@ class CourseController extends Controller
     public function index(Request $request)
     {
         try {
-            // Validate the limit parameter
+            // Validate the limit and type parameters
             $validator = Validator::make($request->all(), [
                 'limit' => 'sometimes|integer|min:1|max:100',
+                'type' => 'nullable|in:Course,Live_Teaching,CBT',
             ]);
 
             if ($validator->fails()) {
+                \Log::error('Validation errors:', $validator->errors()->toArray());
                 return response()->json($validator->errors(), 422);
             }
 
             // Set default limit if not provided
             $limit = $request->input('limit', 10);
 
-            $courses = Course::with(['category', 'topics.lessons', 'crossSells', 'benefits'])
-                ->paginate($limit);
+            // Build query
+            $query = Course::with(['category', 'topics.lessons', 'crossSells', 'benefits', 'questions.answers']);
+
+            // Apply type filter if provided
+            if ($request->has('type')) {
+                $query->where('type', $request->type);
+            }
+
+            // Paginate results
+            $courses = $query->paginate($limit);
 
             return response()->json([
                 'message' => 'Courses retrieved successfully',
                 'data' => $courses
             ], 200);
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
+            \Log::error('Failed to retrieve courses:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return response()->json(['error' => 'Failed to retrieve courses: ' . $e->getMessage()], 500);
         }
     }

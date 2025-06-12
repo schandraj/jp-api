@@ -7,9 +7,26 @@ use Illuminate\Database\Eloquent\Model;
 class Course extends Model
 {
     protected $fillable = [
-        'title', 'category_id', 'course_level', 'max_student', 'is_public',
-        'short_description', 'description', 'image', 'link_ebook', 'link_group',
-        'slug', 'price', 'discount_type', 'discount', 'status'
+        'title',
+        'category_id',
+        'course_level',
+        'max_student',
+        'is_public',
+        'short_description',
+        'description',
+        'image',
+        'link_ebook',
+        'link_group',
+        'slug',
+        'price',
+        'discount_type',
+        'discount',
+        'status',
+        'type',
+        'start_date',
+        'end_date',
+        'poster',
+        'duration',
     ];
 
     protected $casts = [
@@ -17,7 +34,10 @@ class Course extends Model
         'is_public' => 'boolean',
         'course_level' => 'string',
         'discount_type' => 'string',
-        'status' => 'string'
+        'status' => 'string',
+        'type' => 'string',
+        'start_date' => 'datetime',
+        'end_date' => 'datetime',
     ];
 
     public function category()
@@ -38,5 +58,10 @@ class Course extends Model
     public function benefits()
     {
         return $this->belongsToMany(Benefit::class, 'course_benefit');
+    }
+
+    public function questions()
+    {
+        return $this->hasMany(CourseQuestion::class);
     }
 }
