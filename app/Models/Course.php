@@ -27,10 +27,10 @@ class Course extends Model
         'end_date',
         'poster',
         'duration',
+        'studied',
     ];
 
     protected $casts = [
-        'slug' => 'array',
         'is_public' => 'boolean',
         'course_level' => 'string',
         'discount_type' => 'string',
@@ -38,6 +38,7 @@ class Course extends Model
         'type' => 'string',
         'start_date' => 'datetime',
         'end_date' => 'datetime',
+        'studied' => 'array',
     ];
 
     public function category()

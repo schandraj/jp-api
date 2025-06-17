@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Benefit;
 use App\Models\Course;
 use App\Models\CourseCrossSell;
 use App\Models\CourseQuestion;
@@ -26,7 +27,7 @@ class CourseController extends Controller
 
         // Decode JSON strings for array fields
         $input = $request->all();
-        $jsonFields = ['topic', 'slug', 'cross_sell', 'benefits', 'questions'];
+        $jsonFields = ['topic', 'cross_sell', 'benefits', 'questions', 'benefits', 'studied'];
         foreach ($jsonFields as $field) {
             if ($request->has($field)) {
                 $input[$field] = json_decode($request->input($field), true);
@@ -51,8 +52,7 @@ class CourseController extends Controller
             'poster' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'link_ebook' => 'nullable|url',
             'link_group' => 'nullable|string',
-            'slug' => 'nullable|array',
-            'slug.*' => 'string',
+            'slug' => 'required|string|unique:courses,slug',
             'price' => 'required|numeric|min:0',
             'discount_type' => 'nullable|in:PERCENTAGE,NOMINAL',
             'discount' => 'nullable|numeric|min:0',
@@ -71,13 +71,17 @@ class CourseController extends Controller
             'cross_sell.*.cross_course_id' => 'required_with:cross_sell|exists:courses,id',
             'cross_sell.*.note' => 'nullable|string',
             'benefits' => 'nullable|array',
-            'benefits.*.benefit_id' => 'required_with:benefits|exists:benefits,id',
+            'benefits.*.id' => 'nullable|exists:benefits,id',
+            'benefits.*.name' => 'required_with:benefits|string|max:255',
+            'benefits.*.icon' => 'required_with:benefits|string|max:255',
             'questions' => 'nullable|array',
             'questions.*.question' => 'required_with:questions|string',
             'questions.*.discussion' => 'required_with:questions|string',
             'questions.*.answers' => 'required_with:questions|array|min:1',
             'questions.*.answers.*.choice' => 'required_with:questions.*.answers|string',
             'questions.*.answers.*.is_true' => 'required_with:questions.*.answers|boolean',
+            'studied' => 'sometimes|array',
+            'studied.*' => 'string',
         ]);
 
         if ($validator->fails()) {
@@ -162,9 +166,20 @@ class CourseController extends Controller
                 }
             }
 
-            // Sync benefits
+            // Create and attach benefits
             if (!empty($input['benefits'])) {
-                $benefitIds = array_column($input['benefits'], 'benefit_id');
+                $benefitIds = [];
+                foreach ($input['benefits'] as $benefitData) {
+                    if (isset($benefitData['id'])) {
+                        $benefitIds[] = $benefitData['id'];
+                    } else {
+                        $benefit = Benefit::create([
+                            'name' => $benefitData['name'],
+                            'icon' => $benefitData['icon'],
+                        ]);
+                        $benefitIds[] = $benefit->id;
+                    }
+                }
                 $course->benefits()->sync($benefitIds);
             }
 
@@ -218,9 +233,19 @@ class CourseController extends Controller
             // Paginate results
             $courses = $query->paginate($limit);
 
+            // Calculate summary statistics
+            $summary = [
+                'active' => Course::where('status', 'PUBLISHED')->where('type', $request->type)->count(),
+                'unpublished' => Course::where('status', 'UNPUBLISHED')->where('type', $request->type)->count(),
+                'draft' => Course::where('status', 'DRAFT')->where('type', $request->type)->count(),
+                'free' => Course::where('price', 0)->where('type', $request->type)->count(),
+                'paid' => Course::where('price', '>', 0)->where('type', $request->type)->count(),
+            ];
+
             return response()->json([
                 'message' => 'Courses retrieved successfully',
-                'data' => $courses
+                'data' => $courses,
+                'summary' => $summary,
             ], 200);
         } catch (\Exception $e) {
             \Log::error('Failed to retrieve courses:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
@@ -246,70 +271,111 @@ class CourseController extends Controller
     }
 
     /**
+     * Display the course by slug.
+     */
+    public function showBySlug($slug)
+    {
+        try {
+            $course = Course::with(['category', 'topics.lessons', 'crossSells', 'benefits', 'questions.answers'])
+                ->where('slug', $slug)
+                ->firstOrFail();
+            return response()->json([
+                'message' => 'Course retrieved successfully',
+                'data' => $course
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Course not found'], 404);
+        }
+    }
+
+    /**
+     * Display the course by title.
+     */
+    public function showByTitle($title)
+    {
+        try {
+            $course = Course::with(['category', 'topics.lessons', 'crossSells', 'benefits', 'questions.answers'])
+                ->where('title', 'like', "%$title%") // Partial match for flexibility
+                ->firstOrFail();
+            return response()->json([
+                'message' => 'Course retrieved successfully',
+                'data' => $course
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Course not found'], 404);
+        }
+    }
+
+    /**
      * Update an existing course.
      */
     public function update(Request $request, $id)
     {
+        // Log raw input for debugging
+        \Log::info('Update course request:', $request->all());
+
         // Decode JSON strings for array fields
         $input = $request->all();
-        if ($request->has('topic')) {
-            $input['topic'] = json_decode($request->input('topic'), true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json(['topic' => 'Invalid JSON format for topic'], 422);
-            }
-        }
-        if ($request->has('slug')) {
-            $input['slug'] = json_decode($request->input('slug'), true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json(['slug' => 'Invalid JSON format for slug'], 422);
-            }
-        }
-        if ($request->has('cross_sell')) {
-            $input['cross_sell'] = json_decode($request->input('cross_sell'), true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json(['cross_sell' => 'Invalid JSON format for cross_sell'], 422);
-            }
-        }
-        if ($request->has('benefits')) {
-            $input['benefits'] = json_decode($request->input('benefits'), true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json(['benefits' => 'Invalid JSON format for benefits'], 422);
+        $jsonFields = ['topic', 'cross_sell', 'benefits', 'questions', 'studied'];
+        foreach ($jsonFields as $field) {
+            if ($request->has($field)) {
+                $input[$field] = json_decode($request->input($field), true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    return response()->json([$field => "Invalid JSON format for $field"], 422);
+                }
+            } else {
+                $input[$field] = []; // Default to empty array if not provided
             }
         }
 
-        // Validate the input (all fields optional except required ones)
+        // Validate the input
         $validator = Validator::make($input, [
             'title' => 'sometimes|required|string|max:255',
             'category_id' => 'sometimes|required|exists:categories,id',
             'course_level' => 'sometimes|required|in:BEGINNER,INTERMEDIATE,ADVANCE,EXPERT',
             'max_student' => 'sometimes|required|integer|min:1',
-            'is_public' => 'sometimes|required|boolean',
+            'is_public' => 'sometimes|boolean',
             'short_description' => 'sometimes|required|string',
             'description' => 'nullable|string',
-            'thumbnail' => 'sometimes|required|image|mimes:jpeg,png,jpg|max:2048',
+            'thumbnail' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
+            'poster' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
             'link_ebook' => 'nullable|url',
             'link_group' => 'nullable|string',
-            'slug' => 'sometimes|required|array',
-            'slug.*' => 'string',
+            'slug' => 'nullable|string|unique:courses,slug',
             'price' => 'sometimes|required|numeric|min:0',
             'discount_type' => 'nullable|in:PERCENTAGE,NOMINAL',
             'discount' => 'nullable|numeric|min:0',
-            'topic' => 'sometimes|required|array',
-            'topic.*.name' => 'required|string',
-            'topic.*.lesson' => 'required|array',
-            'topic.*.lesson.*.name' => 'required|string',
+            'type' => 'sometimes|required|in:Course,Live_Teaching,CBT',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'duration' => 'nullable|integer|min:0',
+            'status' => 'sometimes|required|in:DRAFT,UNPUBLISHED,PUBLISHED',
+            'topic' => 'sometimes|array',
+            'topic.*.name' => 'required_with:topic|string',
+            'topic.*.lesson' => 'required_with:topic|array',
+            'topic.*.lesson.*.name' => 'required_with:topic.*.lesson|string',
             'topic.*.lesson.*.video_link' => 'nullable|url',
             'topic.*.lesson.*.description' => 'nullable|string',
-            'topic.*.lesson.*.is_premium' => 'required|boolean',
-            'cross_sell' => 'nullable|array',
-            'cross_sell.*.cross_course_id' => 'required|exists:courses,id',
+            'topic.*.lesson.*.is_premium' => 'required_with:topic.*.lesson|boolean',
+            'cross_sell' => 'sometimes|array',
+            'cross_sell.*.cross_course_id' => 'required_with:cross_sell|exists:courses,id',
             'cross_sell.*.note' => 'nullable|string',
-            'benefits' => 'nullable|array',
-            'benefits.*.benefit_id' => 'required|exists:benefits,id',
-            'status' => 'sometimes|required|in:DRAFT,UNPUBLISHED,PUBLISHED',
+            'benefits' => 'sometimes|array',
+            'benefits.*.id' => 'nullable|exists:benefits,id',
+            'benefits.*.name' => 'required_without:benefits.*.id|string|max:255',
+            'benefits.*.icon' => 'required_without:benefits.*.id|string|max:255',
+            'questions' => 'sometimes|array',
+            'questions.*.question' => 'required_with:questions|string',
+            'questions.*.discussion' => 'required_with:questions|string',
+            'questions.*.answers' => 'required_with:questions|array|min:1',
+            'questions.*.answers.*.choice' => 'required_with:questions.*.answers|string',
+            'questions.*.answers.*.is_true' => 'required_with:questions.*.answers|boolean',
+            'studied' => 'sometimes|array',
+            'studied.*' => 'string',
         ]);
 
         if ($validator->fails()) {
+            \Log::error('Validation errors:', $validator->errors()->toArray());
             return response()->json($validator->errors(), 422);
         }
 
@@ -317,12 +383,17 @@ class CourseController extends Controller
             DB::beginTransaction();
 
             $course = Course::findOrFail($id);
-            $oldImagePath = $course->image;
+            $oldThumbnailPath = $course->thumbnail;
+            $oldPosterPath = $course->poster;
 
-            // Handle file upload if provided
-            $imagePath = $oldImagePath;
+            // Handle file uploads
+            $thumbnailPath = $oldThumbnailPath;
             if ($request->hasFile('thumbnail')) {
-                $imagePath = $request->file('thumbnail')->store('thumbnails', 'public');
+                $thumbnailPath = $request->file('thumbnail')->store('thumbnails', 'public');
+            }
+            $posterPath = $oldPosterPath;
+            if ($request->hasFile('poster')) {
+                $posterPath = $request->file('poster')->store('posters', 'public');
             }
 
             // Update course
@@ -331,40 +402,46 @@ class CourseController extends Controller
                 'category_id' => $input['category_id'] ?? $course->category_id,
                 'course_level' => $input['course_level'] ?? $course->course_level,
                 'max_student' => $input['max_student'] ?? $course->max_student,
-                'is_public' => isset($input['is_public']) ? $input['is_public'] : $course->is_public,
+                'is_public' => $input['is_public'] ?? $course->is_public,
                 'short_description' => $input['short_description'] ?? $course->short_description,
                 'description' => $input['description'] ?? $course->description,
-                'image' => $imagePath,
+                'thumbnail' => $thumbnailPath,
+                'poster' => $posterPath,
                 'link_ebook' => $input['link_ebook'] ?? $course->link_ebook,
                 'link_group' => $input['link_group'] ?? $course->link_group,
                 'slug' => $input['slug'] ?? $course->slug,
                 'price' => $input['price'] ?? $course->price,
                 'discount_type' => $input['discount_type'] ?? $course->discount_type,
                 'discount' => $input['discount'] ?? $course->discount,
+                'type' => $input['type'] ?? $course->type,
+                'start_date' => $input['start_date'] ?? $course->start_date,
+                'end_date' => $input['end_date'] ?? $course->end_date,
+                'duration' => $input['duration'] ?? $course->duration,
+                'status' => $input['status'] ?? $course->status,
             ]);
 
-            // Delete old image if a new one was uploaded
-            if ($request->hasFile('thumbnail') && $oldImagePath && $oldImagePath !== $imagePath) {
-                Storage::disk('public')->delete($oldImagePath);
+            // Delete old images if new ones were uploaded
+            if ($request->hasFile('thumbnail') && $oldThumbnailPath && $oldThumbnailPath !== $thumbnailPath) {
+                Storage::disk('public')->delete($oldThumbnailPath);
+            }
+            if ($request->hasFile('poster') && $oldPosterPath && $oldPosterPath !== $posterPath) {
+                Storage::disk('public')->delete($oldPosterPath);
             }
 
             // Update topics and lessons (replace existing)
-            if (isset($input['topic'])) {
-                // Delete existing topics (cascades to lessons due to onDelete('cascade'))
-                $course->topics()->delete();
-
+            if (isset($input['topic']) && !empty($input['topic'])) {
+                $course->topics()->delete(); // Cascades to lessons
                 foreach ($input['topic'] as $topicData) {
                     $topic = CourseTopic::create([
                         'course_id' => $course->id,
                         'name' => $topicData['name'],
                     ]);
-
                     foreach ($topicData['lesson'] as $lessonData) {
                         TopicLesson::create([
                             'topic_id' => $topic->id,
                             'name' => $lessonData['name'],
-                            'video_link' => $lessonData['video_link'],
-                            'description' => $lessonData['description'],
+                            'video_link' => $lessonData['video_link'] ?? null,
+                            'description' => $lessonData['description'] ?? null,
                             'is_premium' => $lessonData['is_premium'],
                         ]);
                     }
@@ -372,36 +449,68 @@ class CourseController extends Controller
             }
 
             // Update cross-sells (replace existing)
-            if (isset($input['cross_sell'])) {
-                // Delete existing cross-sells
+            if (isset($input['cross_sell']) && !empty($input['cross_sell'])) {
                 $course->crossSells()->delete();
-
                 foreach ($input['cross_sell'] as $crossSellData) {
                     CourseCrossSell::create([
                         'course_id' => $course->id,
                         'cross_course_id' => $crossSellData['cross_course_id'],
-                        'note' => $crossSellData['note'],
+                        'note' => $crossSellData['note'] ?? null,
                     ]);
                 }
             }
 
-            // Sync benefits
-            if (isset($input['benefits'])) {
-                $benefitIds = array_column($input['benefits'], 'benefit_id');
+            // Update benefits (sync or create new)
+            if (isset($input['benefits']) && !empty($input['benefits'])) {
+                $benefitIds = [];
+                foreach ($input['benefits'] as $benefitData) {
+                    if (isset($benefitData['id'])) {
+                        $benefitIds[] = $benefitData['id'];
+                    } else {
+                        $benefit = Benefit::create([
+                            'name' => $benefitData['name'],
+                            'icon' => $benefitData['icon'],
+                        ]);
+                        $benefitIds[] = $benefit->id;
+                    }
+                }
                 $course->benefits()->sync($benefitIds);
+            }
+
+            // Update questions and answers (replace existing)
+            if (isset($input['questions']) && !empty($input['questions'])) {
+                $course->questions()->delete(); // Cascades to answers
+                foreach ($input['questions'] as $questionData) {
+                    $question = CourseQuestion::create([
+                        'course_id' => $course->id,
+                        'question' => $questionData['question'],
+                        'discussion' => $questionData['discussion'],
+                    ]);
+                    foreach ($questionData['answers'] as $answerData) {
+                        QuestionAnswer::create([
+                            'question_id' => $question->id,
+                            'choice' => $answerData['choice'],
+                            'is_true' => $answerData['is_true'],
+                        ]);
+                    }
+                }
             }
 
             DB::commit();
 
             return response()->json([
                 'message' => 'Course updated successfully',
-                'data' => $course->load(['topics.lessons', 'crossSells', 'benefits']),
+                'data' => $course->load(['topics.lessons', 'crossSells', 'benefits', 'questions.answers']),
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
-            if (isset($imagePath) && $imagePath !== $oldImagePath) {
-                Storage::disk('public')->delete($imagePath);
+            if ($request->hasFile('thumbnail') && $thumbnailPath && $thumbnailPath !== $oldThumbnailPath) {
+                Storage::disk('public')->delete($thumbnailPath);
             }
+            if ($request->hasFile('poster') && $posterPath && $posterPath !== $oldPosterPath) {
+                Storage::disk('public')->delete($posterPath);
+            }
+            \Log::error('Course update failed:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return response()->json(['error' => 'Failed to update course: ' . $e->getMessage()], 500);
         }
     }

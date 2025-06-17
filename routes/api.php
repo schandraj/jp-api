@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\BenefitController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CourseController;
+use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\GoogleAuthController;
@@ -29,4 +30,7 @@ Route::middleware(['auth:sanctum', AdminOnly::class])->prefix('admin')->group(fu
     Route::apiResource('benefits', BenefitController::class);
     Route::apiResource('courses', CourseController::class);
     Route::post('courses/{course}/publish', [CourseController::class, 'publish']);
+    Route::get('courses/slug/{slug}', [CourseController::class, 'showBySlug']);
+    Route::get('courses/title/{title}', [CourseController::class, 'showByTitle']);
+    Route::get('dashboard', [DashboardController::class, 'index']);
 });
