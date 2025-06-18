@@ -80,7 +80,7 @@ class CourseController extends Controller
             'questions.*.answers' => 'required_with:questions|array|min:1',
             'questions.*.answers.*.choice' => 'required_with:questions.*.answers|string',
             'questions.*.answers.*.is_true' => 'required_with:questions.*.answers|boolean',
-            'studied' => 'sometimes|array',
+            'studied' => 'nullable|array',
             'studied.*' => 'string',
         ]);
 
@@ -105,7 +105,7 @@ class CourseController extends Controller
                 'is_public' => $input['is_public'] ?? false,
                 'short_description' => $input['short_description'],
                 'description' => $input['description'] ?? null,
-                'thumbnail' => $thumbnailPath,
+                'image' => $thumbnailPath,
                 'poster' => $posterPath,
                 'link_ebook' => $input['link_ebook'] ?? null,
                 'link_group' => $input['link_group'] ?? null,
@@ -118,6 +118,7 @@ class CourseController extends Controller
                 'start_date' => $input['start_date'] ?? null,
                 'end_date' => $input['end_date'] ?? null,
                 'duration' => $input['duration'] ?? null,
+                'studied'  => $input['studied'] ?? null,
             ]);
 
             // Create topics and lessons
@@ -341,7 +342,7 @@ class CourseController extends Controller
             'poster' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
             'link_ebook' => 'nullable|url',
             'link_group' => 'nullable|string',
-            'slug' => 'nullable|string|unique:courses,slug',
+            'slug' => 'nullable|string|unique:courses,slug,' . $id,
             'price' => 'sometimes|required|numeric|min:0',
             'discount_type' => 'nullable|in:PERCENTAGE,NOMINAL',
             'discount' => 'nullable|numeric|min:0',
@@ -363,7 +364,7 @@ class CourseController extends Controller
             'benefits' => 'sometimes|array',
             'benefits.*.id' => 'nullable|exists:benefits,id',
             'benefits.*.name' => 'required_without:benefits.*.id|string|max:255',
-            'benefits.*.icon' => 'required_without:benefits.*.id|string|max:255',
+            'benefits.*.icon' => 'required_without:benefits.*.icon|string|max:255',
             'questions' => 'sometimes|array',
             'questions.*.question' => 'required_with:questions|string',
             'questions.*.discussion' => 'required_with:questions|string',
@@ -405,7 +406,7 @@ class CourseController extends Controller
                 'is_public' => $input['is_public'] ?? $course->is_public,
                 'short_description' => $input['short_description'] ?? $course->short_description,
                 'description' => $input['description'] ?? $course->description,
-                'thumbnail' => $thumbnailPath,
+                'image' => $thumbnailPath,
                 'poster' => $posterPath,
                 'link_ebook' => $input['link_ebook'] ?? $course->link_ebook,
                 'link_group' => $input['link_group'] ?? $course->link_group,
@@ -418,6 +419,7 @@ class CourseController extends Controller
                 'end_date' => $input['end_date'] ?? $course->end_date,
                 'duration' => $input['duration'] ?? $course->duration,
                 'status' => $input['status'] ?? $course->status,
+                'studied' => $input['studied'] ?? $course->studied,
             ]);
 
             // Delete old images if new ones were uploaded
