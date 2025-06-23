@@ -248,23 +248,22 @@ class CourseController extends Controller
                 $query->where('price', 0);
             }
 
-            // Paginate the results
-            $courses = $query->paginate($limit, ['*'], 'page', $page);
+            // Paginate results
+            $courses = $query->paginate($limit);
 
-            // Return paginated response
+            // Calculate summary statistics
+            $summary = [
+                'active' => Course::where('status', 'PUBLISHED')->where('type', $request->type)->count(),
+                'unpublished' => Course::where('status', 'UNPUBLISHED')->where('type', $request->type)->count(),
+                'draft' => Course::where('status', 'DRAFT')->where('type', $request->type)->count(),
+                'free' => Course::where('price', 0)->where('type', $request->type)->count(),
+                'paid' => Course::where('price', '>', 0)->where('type', $request->type)->count(),
+            ];
+
             return response()->json([
                 'message' => 'Courses retrieved successfully',
-                'data' => $courses->items(),
-                'pagination' => [
-                    'total' => $courses->total(),
-                    'per_page' => $courses->perPage(),
-                    'current_page' => $courses->currentPage(),
-                    'last_page' => $courses->lastPage(),
-                    'from' => $courses->firstItem(),
-                    'to' => $courses->lastItem(),
-                    'next_page_url' => $courses->nextPageUrl(),
-                    'prev_page_url' => $courses->previousPageUrl(),
-                ],
+                'data' => $courses,
+                'summary' => $summary,
             ], 200);
         } catch (\Exception $e) {
             \Log::error('Failed to retrieve courses:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
