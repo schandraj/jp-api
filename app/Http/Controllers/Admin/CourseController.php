@@ -52,7 +52,7 @@ class CourseController extends Controller
             'poster' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'link_ebook' => 'nullable|url',
             'link_group' => 'nullable|string',
-            'slug' => 'required|string|unique:courses,slug',
+            'slug' => 'nullable|string|unique:courses,slug',
             'price' => 'required|numeric|min:0',
             'discount_type' => 'nullable|in:PERCENTAGE,NOMINAL',
             'discount' => 'nullable|numeric|min:0',
@@ -209,44 +209,62 @@ class CourseController extends Controller
     public function index(Request $request)
     {
         try {
-            // Validate the limit and type parameters
-            $validator = Validator::make($request->all(), [
-                'limit' => 'sometimes|integer|min:1|max:100',
-                'type' => 'nullable|in:Course,Live_Teaching,CBT',
+            // Get query parameters with defaults
+            $limit = $request->input('limit', 10);
+            $page = $request->input('page', 1);
+            $type = $request->input('type');
+            $category = $request->input('category');
+            $level = $request->input('level');
+            $search = $request->input('search');
+            $isFree = $request->input('is_free', 'false'); // Default to 'false'
+
+            // Validate limit and page
+            $validator = Validator::make(['limit' => $limit, 'page' => $page], [
+                'limit' => 'integer|min:1|max:100',
+                'page' => 'integer|min:1',
             ]);
 
             if ($validator->fails()) {
-                \Log::error('Validation errors:', $validator->errors()->toArray());
                 return response()->json($validator->errors(), 422);
             }
 
-            // Set default limit if not provided
-            $limit = $request->input('limit', 10);
+            // Build the query
+            $query = Course::query();
 
-            // Build query
-            $query = Course::with(['category', 'topics.lessons', 'crossSells', 'benefits', 'questions.answers']);
-
-            // Apply type filter if provided
-            if ($request->has('type')) {
-                $query->where('type', $request->type);
+            // Apply filters
+            if ($type) {
+                $query->where('type', $type);
+            }
+            if ($category) {
+                $query->where('category_id', $category);
+            }
+            if ($level) {
+                $query->where('course_level', $level);
+            }
+            if ($search) {
+                $query->where('title', 'like', "%{$search}%");
+            }
+            if ($isFree === 'true') {
+                $query->where('price', 0);
             }
 
-            // Paginate results
-            $courses = $query->paginate($limit);
+            // Paginate the results
+            $courses = $query->paginate($limit, ['*'], 'page', $page);
 
-            // Calculate summary statistics
-            $summary = [
-                'active' => Course::where('status', 'PUBLISHED')->where('type', $request->type)->count(),
-                'unpublished' => Course::where('status', 'UNPUBLISHED')->where('type', $request->type)->count(),
-                'draft' => Course::where('status', 'DRAFT')->where('type', $request->type)->count(),
-                'free' => Course::where('price', 0)->where('type', $request->type)->count(),
-                'paid' => Course::where('price', '>', 0)->where('type', $request->type)->count(),
-            ];
-
+            // Return paginated response
             return response()->json([
                 'message' => 'Courses retrieved successfully',
-                'data' => $courses,
-                'summary' => $summary,
+                'data' => $courses->items(),
+                'pagination' => [
+                    'total' => $courses->total(),
+                    'per_page' => $courses->perPage(),
+                    'current_page' => $courses->currentPage(),
+                    'last_page' => $courses->lastPage(),
+                    'from' => $courses->firstItem(),
+                    'to' => $courses->lastItem(),
+                    'next_page_url' => $courses->nextPageUrl(),
+                    'prev_page_url' => $courses->previousPageUrl(),
+                ],
             ], 200);
         } catch (\Exception $e) {
             \Log::error('Failed to retrieve courses:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
