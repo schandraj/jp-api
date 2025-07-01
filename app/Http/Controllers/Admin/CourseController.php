@@ -260,6 +260,26 @@ class CourseController extends Controller
                 'paid' => Course::where('price', '>', 0)->where('type', $request->type)->count(),
             ];
 
+            // Calculate level counts based on the filtered query
+            $levelCounts = $query->select('course_level', DB::raw('count(*) as count'))
+                ->groupBy('course_level')
+                ->get()
+                ->pluck('count', 'course_level')
+                ->mapWithKeys(function ($count, $level) {
+                    return [strtoupper($level) => $count];
+                })
+                ->all();
+
+            // Ensure all possible levels are included with 0 count if not present
+            $allLevels = ['BEGINNER', 'INTERMEDIATE', 'ADVANCE', 'EXPERT'];
+            foreach ($allLevels as $level) {
+                if (!isset($levelCounts[$level])) {
+                    $levelCounts[$level] = 0;
+                }
+            }
+
+            $summary['level_counts'] = $levelCounts;
+
             return response()->json([
                 'message' => 'Courses retrieved successfully',
                 'data' => $courses,
