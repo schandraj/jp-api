@@ -31,13 +31,13 @@ class CategoryController extends Controller
             // Fetch categories with counts for each type
             $categories = Category::withCount([
                 'courses as course_count' => function ($query) {
-                    $query->where('type', 'Course');
+                    $query->where('type', 'Course')->where('status', 'PUBLISHED');
                 },
                 'courses as cbt_count' => function ($query) {
-                    $query->where('type', 'CBT');
+                    $query->where('type', 'CBT')->where('status', 'PUBLISHED');
                 },
                 'courses as live_teaching_count' => function ($query) {
-                    $query->where('type', 'Live_Teaching');
+                    $query->where('type', 'Live_Teaching')->where('status', 'PUBLISHED');
                 },
             ])->paginate($limit);
 
