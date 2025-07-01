@@ -248,6 +248,9 @@ class CourseController extends Controller
                 $query->where('price', 0);
             }
 
+            // Eager load questions count for each course
+            $query->withCount('questions');
+
             // Paginate results
             $courses = $query->paginate($limit);
 
