@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Validator;
 class CategoryController extends Controller
 {
     /**
-     * Display a listing of courses with pagination and custom limit.
+     * Display a listing of categories with pagination and course type counts.
      */
     public function index(Request $request)
     {
@@ -28,14 +28,25 @@ class CategoryController extends Controller
             // Set default limit if not provided
             $limit = $request->input('limit', 10);
 
-            $categories = Category::paginate($limit);
+            // Fetch categories with counts for each type
+            $categories = Category::withCount([
+                'courses as course_count' => function ($query) {
+                    $query->where('type', 'Course');
+                },
+                'courses as cbt_count' => function ($query) {
+                    $query->where('type', 'CBT');
+                },
+                'courses as live_teaching_count' => function ($query) {
+                    $query->where('type', 'Live_Teaching');
+                },
+            ])->paginate($limit);
 
             return response()->json([
                 'message' => 'Categories retrieved successfully',
                 'data' => $categories
             ], 200);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to retrieve courses: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to retrieve categories: ' . $e->getMessage()], 500);
         }
     }
 
