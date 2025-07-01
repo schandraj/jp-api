@@ -8,6 +8,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\User\CourseController as UserCourseController;
+use App\Http\Controllers\User\CategoryController as UserCategoryController;
 use App\Http\Middleware\AdminOnly;
 use Illuminate\Support\Facades\Route;
 
@@ -33,4 +35,9 @@ Route::middleware(['auth:sanctum', AdminOnly::class])->prefix('admin')->group(fu
     Route::get('courses/slug/{slug}', [CourseController::class, 'showBySlug']);
     Route::get('courses/title/{title}', [CourseController::class, 'showByTitle']);
     Route::get('dashboard', [DashboardController::class, 'index']);
+});
+
+Route::prefix('user')->group(function () {
+    Route::apiResource('courses', UserCourseController::class);
+    Route::apiResource('categories', UserCategoryController::class);
 });
