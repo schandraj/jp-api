@@ -78,7 +78,7 @@ class CourseController extends Controller
     {
         try {
             $course = Course::with(['category', 'topics.lessons', 'crossSells', 'benefits', 'questions'])
-                ->withCount('questions')
+                ->withCount('questions')->where('status', 'PUBLISHED')
                 ->findOrFail($id);
             return response()->json([
                 'message' => 'Course retrieved successfully',
