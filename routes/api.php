@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CourseController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\TransactionController as TransactionControllerGlobal;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
@@ -18,6 +19,8 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/login-admin', [AuthController::class, 'loginAdmin']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+Route::post('/payment_url', [TransactionControllerGlobal::class, 'createTransaction']);
+Route::post('/notification', [TransactionControllerGlobal::class, 'callbackMidtrans']);
 Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
 
 Route::middleware('auth:sanctum')->get('/users', [UserController::class, 'index']);
