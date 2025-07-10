@@ -55,8 +55,10 @@ class CourseController extends Controller
                 $query->where('price', 0);
             }
 
-            // Eager load questions count for each course
-            $query->withCount('questions');
+            // Eager load questions count and applicant count (only paid transactions)
+            $query->withCount(['questions', 'transactions as student_count' => function ($query) {
+                $query->where('status', 'paid');
+            }]);
 
             // Paginate results
             $courses = $query->paginate($limit);
@@ -78,7 +80,9 @@ class CourseController extends Controller
     {
         try {
             $course = Course::with(['category', 'topics.lessons', 'crossSells', 'benefits', 'questions'])
-                ->withCount('questions')->where('status', 'PUBLISHED')
+                ->withCount(['questions','transactions as student_count' => function ($query) {
+                $query->where('status', 'paid');
+            }])->where('status', 'PUBLISHED')
                 ->findOrFail($id);
             return response()->json([
                 'message' => 'Course retrieved successfully',

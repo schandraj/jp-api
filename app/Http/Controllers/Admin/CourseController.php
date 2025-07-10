@@ -249,7 +249,9 @@ class CourseController extends Controller
             }
 
             // Eager load questions count for each course
-            $query->withCount('questions');
+            $query->withCount(['questions', 'transactions as student_count' => function ($query) {
+                $query->where('status', 'paid');
+            }, 'transactions']);
 
             // Paginate results
             $courses = $query->paginate($limit);
@@ -301,7 +303,9 @@ class CourseController extends Controller
     {
         try {
             $course = Course::with(['category', 'topics.lessons', 'crossSells', 'benefits'])
-                ->withCount('questions')
+                ->withCount(['questions', 'transactions as student_count' => function ($query) {
+                    $query->where('status', 'paid');
+                }, 'transactions'])
                 ->findOrFail($id);
             return response()->json([
                 'message' => 'Course retrieved successfully',
@@ -319,6 +323,9 @@ class CourseController extends Controller
     {
         try {
             $course = Course::with(['category', 'topics.lessons', 'crossSells', 'benefits', 'questions.answers'])
+                ->withCount(['questions', 'transactions as student_count' => function ($query) {
+                    $query->where('status', 'paid');
+                }, 'transactions'])
                 ->where('slug', $slug)
                 ->firstOrFail();
             return response()->json([
@@ -337,6 +344,9 @@ class CourseController extends Controller
     {
         try {
             $course = Course::with(['category', 'topics.lessons', 'crossSells', 'benefits', 'questions.answers'])
+                ->withCount(['questions', 'transactions as student_count' => function ($query) {
+                    $query->where('status', 'paid');
+                }, 'transactions'])
                 ->where('title', 'like', "%$title%") // Partial match for flexibility
                 ->firstOrFail();
             return response()->json([

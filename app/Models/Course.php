@@ -65,4 +65,9 @@ class Course extends Model
     {
         return $this->hasMany(CourseQuestion::class);
     }
+
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class, 'course_id');
+    }
 }

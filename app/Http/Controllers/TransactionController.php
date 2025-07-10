@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Course;
 use App\Models\Transaction;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
@@ -28,6 +29,16 @@ class TransactionController extends Controller
 
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()], 422);
+        }
+
+        // Fetch course max_student and check applicant count
+        $course = Course::findOrFail($request->course_id);
+        $applicantCount = Transaction::where('course_id', $request->course_id)->where('status', 'paid')->count();
+
+        if ($applicantCount >= $course->max_student) {
+            return response()->json([
+                'message' => 'This course has reached its maximum student capacity (' . $course->max_student . '). Transaction cannot be created.',
+            ], 400);
         }
 
         $client = new Client();

@@ -38,6 +38,7 @@ Route::middleware(['auth:sanctum', AdminOnly::class])->prefix('admin')->group(fu
     Route::get('courses/slug/{slug}', [CourseController::class, 'showBySlug']);
     Route::get('courses/title/{title}', [CourseController::class, 'showByTitle']);
     Route::get('dashboard', [DashboardController::class, 'index']);
+    Route::apiResource('transactions', \App\Http\Controllers\Admin\TransactionController::class);
 });
 
 Route::prefix('user')->group(function () {
