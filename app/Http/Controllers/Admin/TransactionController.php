@@ -26,9 +26,20 @@ class TransactionController extends Controller
 
             // Set default limit if not provided
             $limit = $request->input('limit', 10);
+            $page = $request->input('page', 1);
+            $status = $request->input('status');
+            $search = $request->input('search');
+
+            $query = Transaction::query();
+            if ($status) {
+                $query->where('status', $status);
+            }
+            if ($search) {
+                $query->where('order_id', 'like', "%{$search}%");
+            }
 
             // Fetch transactions with pagination
-            $transactions = Transaction::with('course')->paginate($limit);
+            $transactions = $query->with('course')->paginate($limit);
 
             return response()->json([
                 'message' => 'Transactions retrieved successfully',
@@ -63,6 +74,7 @@ class TransactionController extends Controller
                 'email' => $request->email,
                 'total' => $request->total,
                 'status' => $request->status,
+                'type' => 'manual'
             ]);
 
             return response()->json([

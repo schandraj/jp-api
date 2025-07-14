@@ -302,7 +302,9 @@ class CourseController extends Controller
     public function show($id)
     {
         try {
-            $course = Course::with(['category', 'topics.lessons', 'crossSells', 'benefits'])
+            $course = Course::with(['category', 'topics.lessons', 'crossSells.crossCourse' => function ($query) {
+                $query->select('id', 'title', 'image', 'category_id', 'course_level', 'price', 'status');
+            }, 'benefits'])
                 ->withCount(['questions', 'transactions as student_count' => function ($query) {
                     $query->where('status', 'paid');
                 }, 'transactions'])
