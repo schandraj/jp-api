@@ -44,4 +44,5 @@ Route::middleware(['auth:sanctum', AdminOnly::class])->prefix('admin')->group(fu
 Route::prefix('user')->group(function () {
     Route::apiResource('courses', UserCourseController::class);
     Route::apiResource('categories', UserCategoryController::class);
+    Route::get('/dashboard', [App\Http\Controllers\User\UserController::class, 'dashboard'])->middleware('auth:api');
 });
