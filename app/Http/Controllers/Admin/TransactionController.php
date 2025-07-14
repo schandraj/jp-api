@@ -74,6 +74,7 @@ class TransactionController extends Controller
                 'email' => $request->email,
                 'total' => $request->total,
                 'status' => $request->status,
+                'notes' => $request->notes,
                 'type' => 'manual'
             ]);
 
@@ -127,6 +128,7 @@ class TransactionController extends Controller
                 'email' => $request->email ?? $transaction->email,
                 'total' => $request->total ?? $transaction->total,
                 'status' => $request->status ?? $transaction->status,
+                'notes' => $request->notes ?? $transaction->notes,
             ]);
 
             return response()->json([

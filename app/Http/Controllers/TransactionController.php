@@ -91,7 +91,8 @@ class TransactionController extends Controller
                 'email' => $request->email,
                 'course_id' => $request->course_id,
                 'total' => $request->total,
-                'type' => 'midtrans'
+                'type' => 'midtrans',
+                'notes' => $request->notes
             ]);
 
             DB::commit();
