@@ -20,7 +20,8 @@ class TransactionController extends Controller
     {
         // Validate request data
         $validator = Validator::make($request->all(), [
-            'course_id' => 'required|exists:courses,id',
+            'course_id' => 'required|array',
+            'course_id.*' => 'exists:courses,id',
             'fullname' => 'required|string',
             'email' => 'required|email',
             'total' => 'required|numeric|min:0',
@@ -31,14 +32,26 @@ class TransactionController extends Controller
             return response()->json(['error' => $validator->errors()], 422);
         }
 
-        // Fetch course max_student and check applicant count
-        $course = Course::findOrFail($request->course_id);
-        $applicantCount = Transaction::where('course_id', $request->course_id)->where('status', 'paid')->count();
+        $courseIds = $request->input('course_id');
+        $userEmail = $request->email;
+        $total = $request->total;
 
-        if ($applicantCount >= $course->max_student) {
-            return response()->json([
-                'message' => 'This course has reached its maximum student capacity (' . $course->max_student . '). Transaction cannot be created.',
-            ], 400);
+        // Check capacity for each course
+        $capacityIssues = [];
+        foreach ($courseIds as $courseId) {
+            $course = Course::findOrFail($courseId);
+            $applicantCount = Transaction::where('course_id', $courseId)->where('status', 'paid')->count();
+            if ($applicantCount >= $course->max_student) {
+                $capacityIssues[$courseId] = $course->max_student;
+            }
+        }
+
+        if (!empty($capacityIssues)) {
+            $message = 'The following courses have reached their maximum student capacity: ' .
+                implode(', ', array_map(function ($id, $limit) {
+                    return "Course ID $id ($limit)";
+                }, array_keys($capacityIssues), $capacityIssues)) . '.';
+            return response()->json(['message' => $message], 400);
         }
 
         $client = new Client();
@@ -51,24 +64,40 @@ class TransactionController extends Controller
         $order_id = "{$prefix}{$date}-{$random}";
 
         // Convert total to cents (Midtrans expects integer in smallest unit)
-        $grossAmount = $request->total;
-
-        $params = [
-            'transaction_details' => [
-                'order_id' => $order_id,
-                'gross_amount' => $grossAmount,
-            ],
-            'customer_details' => [
-                'first_name' => $request->fullname,
-                'email' => $request->email,
-                'phone' => $request->phone_number,
-            ],
-        ];
-
-        $jsonStr = json_encode($params, JSON_UNESCAPED_SLASHES);
+        $grossAmount = 0;
 
         try {
             DB::beginTransaction();
+
+            // Create a transaction record for each course_id
+            foreach ($courseIds as $courseId) {
+                $course = Course::findOrFail($courseId);
+                $discount = $course->discount_type === 'PERCENTAGE' ? $course->price * ($course->discount / 100) : $course->discount;
+                $price = $course->price -  $discount;
+                $grossAmount += $price;
+                Transaction::create([
+                    'order_id' => $order_id,
+                    'email' => $userEmail,
+                    'course_id' => $courseId,
+                    'total' => $price,
+                    'type' => 'midtrans',
+                    'notes' => $request->input('notes', null),
+                ]);
+            }
+
+            $params = [
+                'transaction_details' => [
+                    'order_id' => $order_id,
+                    'gross_amount' => $grossAmount,
+                ],
+                'customer_details' => [
+                    'first_name' => $request->fullname,
+                    'email' => $userEmail,
+                    'phone' => $request->phone_number,
+                ],
+            ];
+
+            $jsonStr = json_encode($params, JSON_UNESCAPED_SLASHES);
 
             $response = $client->request('POST', config('midtrans.url'), [
                 'body' => $jsonStr,
@@ -86,22 +115,17 @@ class TransactionController extends Controller
                 throw new \Exception('Midtrans API returned non-success status: ' . $response->getStatusCode());
             }
 
-            Transaction::create([
-                'order_id' => $order_id,
-                'email' => $request->email,
-                'course_id' => $request->course_id,
-                'total' => $request->total,
-                'type' => 'midtrans',
-                'notes' => $request->notes
-            ]);
-
             DB::commit();
 
-            Log::info('Midtrans Transaction Success:', ['order_id' => $order_id, 'response' => $data]);
+            Log::info('Midtrans Transaction Success:', [
+                'order_id' => $order_id,
+                'course_ids' => $courseIds,
+                'response' => $data,
+            ]);
 
             return response()->json([
                 'data' => $data,
-                'message' => 'Transaction inserted successfully',
+                'message' => 'Transactions inserted successfully',
             ], 200);
         } catch (GuzzleException $e) {
             DB::rollBack();
@@ -144,17 +168,21 @@ class TransactionController extends Controller
             $order_id = $request->order_id;
             $fraud = $request->fraud_status;
 
-            // Find transaction with a single query
-            $transLocal = Transaction::where('order_id', $order_id)->firstOrFail();
+            // Find all transactions with the same order_id
+            $transactions = Transaction::where('order_id', $order_id)->get();
+
+            if ($transactions->isEmpty()) {
+                throw new \Illuminate\Database\Eloquent\ModelNotFoundException();
+            }
 
             // Status mapping with optimized logic
             $statusMap = [
-                'capture' => fn() => $type === 'credit_card' && $fraud === 'accept' ? $transLocal->update(['status' => 'paid']) : null,
-                'settlement' => fn() => $transLocal->update(['status' => 'paid']),
-                'pending' => fn() => $transLocal->update(['status' => 'pending']),
-                'deny' => fn() => $transLocal->update(['status' => 'failed']),
-                'expire' => fn() => $transLocal->update(['status' => 'failed']),
-                'cancel' => fn() => $transLocal->update(['status' => 'failed']),
+                'capture' => fn() => $type === 'credit_card' && $fraud === 'accept' ? $transactions->each->update(['status' => 'paid']) : null,
+                'settlement' => fn() => $transactions->each->update(['status' => 'paid']),
+                'pending' => fn() => $transactions->each->update(['status' => 'pending']),
+                'deny' => fn() => $transactions->each->update(['status' => 'failed']),
+                'expire' => fn() => $transactions->each->update(['status' => 'failed']),
+                'cancel' => fn() => $transactions->each->update(['status' => 'failed']),
             ];
 
             // Process status update
@@ -169,7 +197,8 @@ class TransactionController extends Controller
                 return response()->json(['message' => 'Unknown or unhandled transaction status'], 200);
             }
 
-            Log::info('Notification Processed:', ['order_id' => $order_id, 'new_status' => $transLocal->status]);
+            // Log the first transaction's status as a representative (all should be the same)
+            Log::info('Notification Processed:', ['order_id' => $order_id, 'new_status' => $transactions->first()->status]);
             return response()->json(['message' => 'Notification processed successfully'], 200);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             Log::error('Transaction Not Found:', ['order_id' => $order_id, 'error' => $e->getMessage()]);
