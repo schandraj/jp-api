@@ -45,4 +45,9 @@ Route::prefix('user')->group(function () {
     Route::apiResource('courses', UserCourseController::class);
     Route::apiResource('categories', UserCategoryController::class);
     Route::get('/dashboard', [App\Http\Controllers\User\UserController::class, 'dashboard'])->middleware('auth:api');
+    Route::get('/profile', [App\Http\Controllers\User\UserController::class, 'profile'])->middleware('auth:api');
+    Route::post('/profile', [App\Http\Controllers\User\UserController::class, 'profileUpdate'])->middleware('auth:api');
+    Route::get('/transactions', [App\Http\Controllers\User\UserController::class, 'transactions'])->middleware('auth:api');
+    Route::post('/change-password', [App\Http\Controllers\User\UserController::class, 'changePassword'])->middleware('auth:api');
+    Route::post('/change-email', [App\Http\Controllers\User\UserController::class, 'changeEmail'])->middleware('auth:api');
 });
