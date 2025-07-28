@@ -172,6 +172,32 @@ class UserController extends Controller
 
     }
 
+    public function transactionDetails(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return response()->json(['error' => 'Unauthenticated'], 401);
+            }
+
+            // Retrieve transaction by id for the authenticated user's email
+            $transaction = Transaction::where('email', $user->email)->with(['course' => function ($query) {
+                $query->select(['id', 'title', 'type']);
+            }])->where('id', $id)->firstOrFail();
+
+            return response()->json([
+                'message' => 'Transaction retrieved successfully',
+                'data' => $transaction
+            ], 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::warning('Transaction Not Found:', ['user_id' => $user->id ?? null, 'transaction_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'Transaction not found'], 404);
+        } catch (\Exception $e) {
+            Log::error('Failed to Retrieve Transaction:', ['user_id' => $user->id ?? null, 'transaction_id' => $id, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json(['error' => 'Failed to retrieve transaction data'], 500);
+        }
+    }
+
     public function changePassword(Request $request)
     {
         // Validate incoming request data
