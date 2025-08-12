@@ -109,7 +109,7 @@ class CourseController extends Controller
                 'poster' => $posterPath,
                 'link_ebook' => $input['link_ebook'] ?? null,
                 'link_group' => $input['link_group'] ?? null,
-                'slug' => $input['slug'],
+                'slug' => $input['slug'] ?? null,
                 'price' => $input['price'],
                 'discount_type' => $input['discount_type'] ?? null,
                 'discount' => $input['discount'] ?? null,
