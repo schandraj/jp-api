@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\User;
 
 use App\Http\Controllers\Controller;
+use App\Models\Course;
 use App\Models\Transaction;
+use App\Models\UserAnswer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -278,6 +280,90 @@ class UserController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
             return response()->json(['error' => 'Failed to change email'], 500);
+        }
+    }
+
+    public function submitAnswers(Request $request)
+    {
+        // Validate incoming request data
+        $validator = Validator::make($request->all(), [
+            'course_id' => 'required|integer|exists:courses,id',
+            'answers' => 'required|array',
+            'answers.*.question_id' => 'required|integer|exists:course_questions,id',
+            'answers.*.answer_id' => 'required|integer|exists:question_answers,id',
+        ]);
+
+        if ($validator->fails()) {
+            Log::warning('Submit Answers Validation Failed:', ['errors' => $validator->errors()->toArray(), 'input' => $request->all()]);
+            return response()->json(['error' => $validator->errors()], 422);
+        }
+
+        try {
+            $user = $request->user();
+            if (!$user->role == 'user') {
+                return response()->json(['error' => 'Unauthenticated'], 401);
+            }
+
+            $courseId = $request->course_id;
+            $answers = $request->answers;
+
+            // Store user answers
+            $userAnswers = [];
+            foreach ($answers as $answer) {
+                $userAnswer = UserAnswer::create([
+                    'user_id' => $user->id,
+                    'course_id' => $courseId,
+                    'question_id' => $answer['question_id'],
+                    'answer_id' => $answer['answer_id'],
+                    'is_correct' => false, // Will be updated below
+                ]);
+                $userAnswers[] = $userAnswer;
+            }
+
+            // Fetch course questions and correct answers
+            $course = Course::with(['questions.answers' => function ($query) {
+                $query->where('is_true', true);
+            }])->findOrFail($courseId);
+
+            $correctAnswers = $course->questions->flatMap->answers->keyBy('question_id')->map->id;
+
+            // Check correctness and update is_correct
+            $correctCount = 0;
+            $totalQuestions = $course->questions->count();
+            foreach ($userAnswers as $userAnswer) {
+                $isCorrect = $correctAnswers->get($userAnswer->question_id) == $userAnswer->answer_id;
+                $userAnswer->update(['is_correct' => $isCorrect]);
+                if ($isCorrect) {
+                    $correctCount++;
+                }
+            }
+
+            // Calculate score (percentage)
+            $score = $totalQuestions > 0 ? ($correctCount / $totalQuestions) * 100 : 0;
+
+            Log::info('Answers Submitted Successfully:', [
+                'user_id' => $user->id,
+                'course_id' => $courseId,
+                'score' => $score,
+                'correct_count' => $correctCount,
+                'total_questions' => $totalQuestions,
+            ]);
+
+            return response()->json([
+                'message' => 'Answers submitted and scored successfully',
+                'data' => [
+                    'score' => number_format($score, 2) . '%',
+                    'correct_count' => $correctCount,
+                    'total_questions' => $totalQuestions,
+                    'user_answers' => $userAnswers,
+                ],
+            ], 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('Course or Question Not Found:', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Course or question data not found'], 404);
+        } catch (\Exception $e) {
+            Log::error('Submit Answers Failed:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json(['error' => 'Failed to process answers: ', $e->getMessage()], 500);
         }
     }
 }

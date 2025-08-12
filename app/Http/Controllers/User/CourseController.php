@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class CourseController extends Controller
@@ -86,6 +87,21 @@ class CourseController extends Controller
                 $query->where('status', 'paid');
             }])->where('status', 'PUBLISHED')
                 ->findOrFail($id);
+            return response()->json([
+                'message' => 'Course retrieved successfully',
+                'data' => $course
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Course not found'], 404);
+        }
+    }
+
+    public function getCbt($id)
+    {
+        try {
+            $course = Course::with(['questions.answers' => function ($query) {
+                $query->select('id','question_id','choice');
+            }])->findOrFail($id);
             return response()->json([
                 'message' => 'Course retrieved successfully',
                 'data' => $course
