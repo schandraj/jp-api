@@ -7,8 +7,10 @@ use App\Models\Course;
 use App\Models\Transaction;
 use App\Models\UserAnswer;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class UserController extends Controller
@@ -364,6 +366,44 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error('Submit Answers Failed:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return response()->json(['error' => 'Failed to process answers: ', $e->getMessage()], 500);
+        }
+    }
+
+    public function updateProfilePicture(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['error' => 'Unauthenticated'], 401);
+            }
+
+            // Validate request
+            $request->validate([
+                'profile_picture' => 'required|image|max:2048', // Max 2MB
+            ]);
+
+            // Handle file upload
+            if ($request->hasFile('profile_picture')) {
+                $file = $request->file('profile_picture');
+                $fileName = time() . '_' . $file->getClientOriginalName();
+                $path = $file->storeAs('profile_pictures', $fileName, 'public');
+
+                // Delete old profile picture if exists
+                if ($user->profile_picture) {
+                    Storage::disk('public')->delete($user->profile_picture);
+                }
+
+                // Update user with new profile picture path
+                $user->update(['profile_picture' => $path]);
+            }
+
+            return response()->json([
+                'message' => 'Profile picture updated successfully',
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['error' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to update profile picture'], 500);
         }
     }
 }

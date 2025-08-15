@@ -5,6 +5,7 @@ namespace App\Http\Controllers\User;
 use App\Http\Controllers\Controller;
 use App\Models\Course;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -99,15 +100,75 @@ class CourseController extends Controller
     public function getCbt($id)
     {
         try {
-            $course = Course::with(['questions.answers' => function ($query) {
-                $query->select('id','question_id','choice');
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['error' => 'Unauthenticated'], 401);
+            }
+
+            // Log user and course details for debugging
+            Log::debug('Fetching CBT:', ['user_id' => $user->id, 'email' => $user->email, 'course_id' => $id]);
+
+            // Check if user has bought the course
+            $course = Course::whereHas('transactions', function ($query) use ($user) {
+                $query->where('email', $user->email)->where('status', 'paid');
+                Log::debug('Transaction Query:', ['conditions' => ['email' => $user->email, 'status' => 'paid']]);
+            })->with(['questions.answers' => function ($query) {
+                $query->select('id', 'question_id', 'choice');
             }])->findOrFail($id);
+
+            Log::info('CBT Retrieved Successfully:', ['user_id' => $user->id, 'course_id' => $id]);
+
             return response()->json([
                 'message' => 'Course retrieved successfully',
                 'data' => $course
             ], 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::warning('Course Not Found or Not Purchased:', [
+                'user_id' => $user->id ?? null,
+                'course_id' => $id,
+                'email' => $user->email ?? null,
+                'error' => $e->getMessage()
+            ]);
+            return response()->json(['error' => 'Course not found or not purchased'], 404);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Course not found'], 404);
+            Log::error('Failed to Retrieve CBT:', [
+                'user_id' => $user->id ?? null,
+                'course_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json(['error' => 'Failed to retrieve course data'], 500);
+        }
+    }
+
+    public function getPurchasedCoursesByType(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['error' => 'Unauthenticated'], 401);
+            }
+
+            // Define allowed types
+            $allowedTypes = ['Live_Teaching', 'CBT', 'Course'];
+
+            $courses = Course::whereHas('transactions', function ($query) use ($user) {
+                $query->where('email', $user->email)->where('status', 'paid');
+            })->whereIn('type', $allowedTypes)
+                ->get()
+                ->groupBy('type');
+
+            // Ensure all allowed types are included with empty arrays if no courses
+            $data = collect($allowedTypes)->mapWithKeys(function ($type) use ($courses) {
+                return [$type => $courses->get($type, collect())];
+            })->all();
+
+            return response()->json([
+                'message' => 'Purchased courses retrieved successfully',
+                'data' => $data,
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to retrieve purchased courses'], 500);
         }
     }
 }
