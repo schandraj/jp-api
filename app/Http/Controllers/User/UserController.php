@@ -45,7 +45,7 @@ class UserController extends Controller
             $transactions = Transaction::where('email', $user->email)
                 ->where('transactions.status', 'paid') // Qualified status column
                 ->with(['course' => function ($query) {
-                    $query->select('id', 'title', 'type', 'price', 'status', 'updated_at', 'category_id', 'image')
+                    $query->select('id', 'title', 'type', 'price', 'status', 'start_date', 'updated_at', 'category_id', 'image')
                         ->orderBy('updated_at', 'desc');
                 }, 'course.category' => function ($query) {
                     $query->select('id', 'name');
