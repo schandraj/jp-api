@@ -530,4 +530,9 @@ class UserController extends Controller
             return response()->json(['error' => 'Failed to reset password: ' . $e->getMessage()], 500);
         }
     }
+
+    public function redirectToResetPassword($token)
+    {
+        return redirect(config('app.web_url') . '/set-password?' . $token);
+    }
 }

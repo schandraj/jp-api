@@ -78,6 +78,7 @@ class CourseController extends Controller
             'questions' => 'nullable|array',
             'questions.*.question' => 'required_with:questions|string',
             'questions.*.discussion' => 'required_with:questions|string',
+            'questions.*.normal_lab' => 'nullable|string',
             'questions.*.answers' => 'required_with:questions|array|min:1',
             'questions.*.answers.*.choice' => 'required_with:questions.*.answers|string',
             'questions.*.answers.*.is_true' => 'required_with:questions.*.answers|boolean',
@@ -146,6 +147,7 @@ class CourseController extends Controller
                     'course_id' => $course->id,
                     'question' => $questionData['question'],
                     'discussion' => $questionData['discussion'],
+                    'normal_lab' => $questionData['normal_lab'],
                 ]);
 
                 foreach ($questionData['answers'] as $answerData) {
@@ -424,6 +426,7 @@ class CourseController extends Controller
             'questions' => 'sometimes|array',
             'questions.*.question' => 'required_with:questions|string',
             'questions.*.discussion' => 'required_with:questions|string',
+            'questions.*.normal_lab' => 'nullable|string',
             'questions.*.answers' => 'required_with:questions|array|min:1',
             'questions.*.answers.*.choice' => 'required_with:questions.*.answers|string',
             'questions.*.answers.*.is_true' => 'required_with:questions.*.answers|boolean',
@@ -544,6 +547,7 @@ class CourseController extends Controller
                         'course_id' => $course->id,
                         'question' => $questionData['question'],
                         'discussion' => $questionData['discussion'],
+                        'normal_lab' => $questionData['normal_lab'],
                     ]);
                     foreach ($questionData['answers'] as $answerData) {
                         QuestionAnswer::create([
