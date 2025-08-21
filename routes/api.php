@@ -11,7 +11,9 @@ use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\User\CourseController as UserCourseController;
 use App\Http\Controllers\User\CategoryController as UserCategoryController;
+use App\Http\Controllers\User\UserController as UserUserController;
 use App\Http\Middleware\AdminOnly;
+use App\Http\Middleware\UserMiddleware;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -43,11 +45,16 @@ Route::middleware(['auth:sanctum', AdminOnly::class])->prefix('admin')->group(fu
 
 Route::prefix('user')->group(function () {
     Route::apiResource('courses', UserCourseController::class);
+    Route::get('/courses/cbt/{id}', [UserCourseController::class, 'getCbt'])->middleware(['auth:api', UserMiddleware::class]);
+    Route::get('/courses/purchased/all', [UserCourseController::class, 'getPurchasedCoursesByType'])->middleware(['auth:api', UserMiddleware::class]);
+    Route::post('/courses/cbt/submit-answer', [UserUserController::class, 'submitAnswers'])->middleware('auth:api');
     Route::apiResource('categories', UserCategoryController::class);
     Route::get('/dashboard', [App\Http\Controllers\User\UserController::class, 'dashboard'])->middleware('auth:api');
     Route::get('/profile', [App\Http\Controllers\User\UserController::class, 'profile'])->middleware('auth:api');
     Route::post('/profile', [App\Http\Controllers\User\UserController::class, 'profileUpdate'])->middleware('auth:api');
+    Route::post('/profile-picture', [App\Http\Controllers\User\UserController::class, 'updateProfilePicture'])->middleware('auth:api');
     Route::get('/transactions', [App\Http\Controllers\User\UserController::class, 'transactions'])->middleware('auth:api');
+    Route::get('/transactions/{id}', [App\Http\Controllers\User\UserController::class, 'transactionDetails'])->middleware('auth:api');
     Route::post('/change-password', [App\Http\Controllers\User\UserController::class, 'changePassword'])->middleware('auth:api');
     Route::post('/change-email', [App\Http\Controllers\User\UserController::class, 'changeEmail'])->middleware('auth:api');
 });
