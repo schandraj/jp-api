@@ -69,6 +69,7 @@ class CourseController extends Controller
             'topic.*.lesson.*.is_premium' => 'required_with:topic.*.lesson|boolean',
             'cross_sell' => 'nullable|array',
             'cross_sell.*.cross_course_id' => 'required_with:cross_sell|exists:courses,id',
+            'cross_sell.*.price' => 'required_with:cross_sell|numeric|min:0',
             'cross_sell.*.note' => 'nullable|string',
             'benefits' => 'nullable|array',
             'benefits.*.id' => 'nullable|exists:benefits,id',
@@ -162,6 +163,7 @@ class CourseController extends Controller
                     CourseCrossSell::create([
                         'course_id' => $course->id,
                         'cross_course_id' => $crossSellData['cross_course_id'],
+                        'price' => $crossSellData['price'],
                         'note' => $crossSellData['note'] ?? null,
                     ]);
                 }
@@ -414,6 +416,7 @@ class CourseController extends Controller
             'cross_sell' => 'sometimes|array',
             'cross_sell.*.cross_course_id' => 'required_with:cross_sell|exists:courses,id',
             'cross_sell.*.note' => 'nullable|string',
+            'cross_sell.*.price' => 'required_with:cross_sell|numeric|min:0',
             'benefits' => 'sometimes|array',
             'benefits.*.id' => 'nullable|exists:benefits,id',
             'benefits.*.name' => 'required_without:benefits.*.id|string|max:255',
@@ -511,6 +514,7 @@ class CourseController extends Controller
                         'course_id' => $course->id,
                         'cross_course_id' => $crossSellData['cross_course_id'],
                         'note' => $crossSellData['note'] ?? null,
+                        'price' => $crossSellData['price'],
                     ]);
                 }
             }

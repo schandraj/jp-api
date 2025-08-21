@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class CourseCrossSell extends Model
 {
-    protected $fillable = ['course_id', 'cross_course_id', 'note'];
+    protected $fillable = ['course_id', 'cross_course_id', 'price', 'note'];
 
     public function course()
     {

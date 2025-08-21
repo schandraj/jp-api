@@ -20,8 +20,9 @@ class TransactionController extends Controller
     {
         // Validate request data
         $validator = Validator::make($request->all(), [
-            'course_id' => 'required|array',
-            'course_id.*' => 'exists:courses,id',
+            'courses' => 'required|array',
+            'courses.*.course_id' => 'required_with:courses|exists:courses,id',
+            'courses.*.price' => 'required_with:courses|numeric|min:0',
             'fullname' => 'required|string',
             'email' => 'required|email',
             'total' => 'required|numeric|min:0',
@@ -32,24 +33,28 @@ class TransactionController extends Controller
             return response()->json(['error' => $validator->errors()], 422);
         }
 
-        $courseIds = $request->input('course_id');
+        $courses = $request->input('courses');
         $userEmail = $request->email;
         $total = $request->total;
 
         // Check capacity for each course
         $capacityIssues = [];
-        foreach ($courseIds as $courseId) {
-            $course = Course::findOrFail($courseId);
-            $applicantCount = Transaction::where('course_id', $courseId)->where('status', 'paid')->count();
-            if ($applicantCount >= $course->max_student) {
-                $capacityIssues[$courseId] = $course->max_student;
+        foreach ($courses as $crs) {
+            $course = Course::find($crs['course_id']); // Use find instead of findOrFail to handle gracefully
+            if ($course) {
+                $applicantCount = Transaction::where('course_id', $crs['course_id'])->where('status', 'paid')->count();
+                if ($applicantCount >= $course->max_student) {
+                    $capacityIssues[$crs['course_id']] = $course->max_student;
+                }
+            } else {
+                $capacityIssues[$crs['course_id']] = 0; // Indicate course not found
             }
         }
 
         if (!empty($capacityIssues)) {
-            $message = 'The following courses have reached their maximum student capacity: ' .
+            $message = 'The following courses have issues: ' .
                 implode(', ', array_map(function ($id, $limit) {
-                    return "Course ID $id ($limit)";
+                    return $limit > 0 ? "Course ID $id has reached maximum student capacity ($limit)" : "Course ID $id not found";
                 }, array_keys($capacityIssues), $capacityIssues)) . '.';
             return response()->json(['message' => $message], 400);
         }
@@ -59,7 +64,7 @@ class TransactionController extends Controller
         $authHeader = 'Basic ' . base64_encode($serverKey);
 
         $prefix = "JP-";
-        $date = date('ymd'); // Optimized date format
+        $date = date('ymd');
         $random = bin2hex(random_bytes(2));
         $order_id = "{$prefix}{$date}-{$random}";
 
@@ -70,19 +75,21 @@ class TransactionController extends Controller
             DB::beginTransaction();
 
             // Create a transaction record for each course_id
-            foreach ($courseIds as $courseId) {
-                $course = Course::findOrFail($courseId);
-                $discount = $course->discount_type === 'PERCENTAGE' ? $course->price * ($course->discount / 100) : $course->discount;
-                $price = $course->price -  $discount;
+            foreach ($courses as $crs) {
+                $price = $crs['price'];
                 $grossAmount += $price;
                 Transaction::create([
                     'order_id' => $order_id,
                     'email' => $userEmail,
-                    'course_id' => $courseId,
+                    'course_id' => $crs['course_id'],
                     'total' => $price,
                     'type' => 'midtrans',
                     'notes' => $request->input('notes', null),
                 ]);
+            }
+
+            if ($grossAmount != $total) {
+                throw new \Exception('Total amount mismatch: Calculated ' . $grossAmount . ' vs provided ' . $total);
             }
 
             $params = [
@@ -99,6 +106,7 @@ class TransactionController extends Controller
 
             $jsonStr = json_encode($params, JSON_UNESCAPED_SLASHES);
 
+            Log::debug('Midtrans Request:', ['params' => $params, 'url' => config('midtrans.url')]);
             $response = $client->request('POST', config('midtrans.url'), [
                 'body' => $jsonStr,
                 'headers' => [
@@ -106,20 +114,20 @@ class TransactionController extends Controller
                     'Authorization' => $authHeader,
                     'content-type' => 'application/json',
                 ],
-                'timeout' => 10, // Add timeout to prevent hanging
+                'timeout' => 10,
             ]);
 
             $data = json_decode($response->getBody()->getContents(), true);
 
             if ($response->getStatusCode() !== 200 && $response->getStatusCode() !== 201) {
-                throw new \Exception('Midtrans API returned non-success status: ' . $response->getStatusCode());
+                throw new \Exception('Midtrans API returned non-success status: ' . $response->getStatusCode() . ' - ' . json_encode($data));
             }
 
             DB::commit();
 
             Log::info('Midtrans Transaction Success:', [
                 'order_id' => $order_id,
-                'course_ids' => $courseIds,
+                'course_ids' => array_column($courses, 'course_id'),
                 'response' => $data,
             ]);
 
@@ -133,14 +141,15 @@ class TransactionController extends Controller
                 'error' => $e->getMessage(),
                 'code' => $e->getCode(),
                 'params' => $params,
+                'response' => $e->getResponse() ? $e->getResponse()->getBody()->getContents() : null,
             ]);
             return response()->json(['error' => 'Failed to create transaction: ' . $e->getMessage()], 500);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Transaction Processing Error:', [
                 'error' => $e->getMessage(),
-                'order_id' => $order_id,
-                'params' => $params,
+                'order_id' => $order_id ?? null,
+                'params' => $params ?? null,
             ]);
             return response()->json(['error' => 'Failed to process transaction: ' . $e->getMessage()], 500);
         }
