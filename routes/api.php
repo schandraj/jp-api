@@ -57,4 +57,8 @@ Route::prefix('user')->group(function () {
     Route::get('/transactions/{id}', [App\Http\Controllers\User\UserController::class, 'transactionDetails'])->middleware('auth:api');
     Route::post('/change-password', [App\Http\Controllers\User\UserController::class, 'changePassword'])->middleware('auth:api');
     Route::post('/change-email', [App\Http\Controllers\User\UserController::class, 'changeEmail'])->middleware('auth:api');
+    Route::post('/send-email', [App\Http\Controllers\User\UserController::class, 'sendEmail']);
+    Route::post('/password/reset-link', [App\Http\Controllers\User\UserController::class, 'sendPasswordResetLink']);
+    Route::post('/password/reset', [App\Http\Controllers\User\UserController::class, 'resetPassword']);
 });
+

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\User;
 
 use App\Http\Controllers\Controller;
+use App\Mail\PasswordReset;
+use App\Mail\SendCustomEmail;
 use App\Models\Course;
 use App\Models\Transaction;
 use App\Models\UserAnswer;
@@ -10,6 +12,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
@@ -404,6 +408,126 @@ class UserController extends Controller
             return response()->json(['error' => $e->errors()], 422);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to update profile picture'], 500);
+        }
+    }
+
+    public function sendEmail(Request $request)
+    {
+        try {
+            // Validate request
+            $request->validate([
+                'to' => 'required|email',
+                'subject' => 'required|string',
+                'body' => 'required|string',
+            ]);
+
+            $details = [
+                'to' => $request->input('to'),
+                'subject' => $request->input('subject'),
+                'body' => $request->input('body'),
+            ];
+
+            // Send email
+            Mail::to($details['to'])->send(new SendCustomEmail($details));
+
+            Log::info('Email Sent Successfully:', [
+                'to' => $details['to'],
+                'subject' => $details['subject'],
+            ]);
+
+            return response()->json([
+                'message' => 'Email sent successfully',
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Failed to Send Email:', [
+                'to' => $request->input('to'),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['error' => 'Failed to send email: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function sendPasswordResetLink(Request $request)
+    {
+        try {
+            // Validate email
+            $request->validate([
+                'email' => 'required|email|exists:users,email',
+            ]);
+
+            $email = $request->input('email');
+
+            // Send password reset link
+            $status = Password::sendResetLink(['email' => $email], function ($user, $token) use ($email) {
+                $details = [
+                    'to' => $email,
+                    'token' => $token,
+                ];
+                Mail::to($email)->send(new PasswordReset($details));
+            });
+
+            if ($status === Password::RESET_LINK_SENT) {
+                Log::info('Password Reset Link Sent:', ['email' => $email]);
+                return response()->json(['message' => 'Password reset link sent to your email'], 200);
+            } else {
+                Log::warning('Password Reset Link Failed:', ['email' => $email, 'status' => $status]);
+                return response()->json(['error' => 'Unable to send password reset link'], 400);
+            }
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::warning('Password Reset Validation Failed:', [
+                'email' => $request->input('email'),
+                'errors' => $e->errors(),
+            ]);
+            return response()->json(['error' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error('Failed to Send Password Reset Link:', [
+                'email' => $request->input('email'),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['error' => 'Failed to send password reset link: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function resetPassword(Request $request)
+    {
+        try {
+            // Validate request
+            $request->validate([
+                'token' => 'required|string',
+                'email' => 'required|email|exists:users,email',
+                'password' => 'required|string|min:8|confirmed',
+            ]);
+
+            $credentials = $request->only('email', 'token', 'password');
+
+            $status = Password::reset($credentials, function ($user, $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password),
+                ])->save();
+            });
+
+            if ($status === Password::PASSWORD_RESET) {
+                Log::info('Password Reset Successfully:', ['email' => $request->email]);
+                return response()->json(['message' => 'Password has been reset successfully'], 200);
+            } else {
+                Log::warning('Password Reset Failed:', ['email' => $request->email, 'status' => $status]);
+                return response()->json(['error' => 'Unable to reset password'], 400);
+            }
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::warning('Password Reset Validation Failed:', [
+                'email' => $request->email,
+                'errors' => $e->errors(),
+            ]);
+            return response()->json(['error' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error('Failed to Reset Password:', [
+                'email' => $request->email,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['error' => 'Failed to reset password: ' . $e->getMessage()], 500);
         }
     }
 }
