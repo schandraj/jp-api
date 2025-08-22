@@ -496,7 +496,6 @@ class UserController extends Controller
             // Validate request
             $request->validate([
                 'token' => 'required|string',
-                'email' => 'required|email|exists:users,email',
                 'password' => 'required|string|min:8|confirmed',
             ]);
 
@@ -533,6 +532,6 @@ class UserController extends Controller
 
     public function redirectToResetPassword($token)
     {
-        return redirect(config('app.web_url') . '/set-password?' . $token);
+        return redirect(config('app.web_url') . '/set-password?token=' . $token);
     }
 }
