@@ -30,7 +30,7 @@ Route::middleware('auth:sanctum')->get('/users', [UserController::class, 'index'
 Route::get('/auth/redirect/google', [GoogleAuthController::class, 'redirect']);
 Route::get('/auth/callback/google', [GoogleAuthController::class, 'callback']);
 
-Route::get('/reset-password/{token}', [UserUserController::class, 'redirectToResetPassword']);
+Route::get('/reset-password/{token}/{email}', [UserUserController::class, 'redirectToResetPassword']);
 
 Route::middleware(['auth:sanctum', AdminOnly::class])->prefix('admin')->group(function () {
     Route::apiResource('users', AdminUserController::class);
