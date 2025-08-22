@@ -10,6 +10,7 @@ use App\Models\Transaction;
 use App\Models\UserAnswer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -499,7 +500,19 @@ class UserController extends Controller
                 'password' => 'required|string|min:8|confirmed',
             ]);
 
-            $credentials = $request->only('email', 'token', 'password');
+            $token = $request->input('token');
+            $password = $request->input('password');
+
+            // Get email from password_resets table using the token
+            $resetRecord = DB::table('password_reset_tokens')->where('token', $token)->first();
+
+            if (!$resetRecord) {
+                Log::warning('Password Reset Failed: Invalid or expired token', ['token' => $token]);
+                return response()->json(['error' => 'Invalid or expired token'], 400);
+            }
+
+            $email = $resetRecord->email;
+            $credentials = ['email' => $email, 'token' => $token, 'password' => $password];
 
             $status = Password::reset($credentials, function ($user, $password) {
                 $user->forceFill([
@@ -508,21 +521,23 @@ class UserController extends Controller
             });
 
             if ($status === Password::PASSWORD_RESET) {
-                Log::info('Password Reset Successfully:', ['email' => $request->email]);
+                // Delete the used token
+                DB::table('password_resets')->where('email', $email)->delete();
+                Log::info('Password Reset Successfully:', ['email' => $email]);
                 return response()->json(['message' => 'Password has been reset successfully'], 200);
             } else {
-                Log::warning('Password Reset Failed:', ['email' => $request->email, 'status' => $status]);
+                Log::warning('Password Reset Failed:', ['email' => $email, 'status' => $status]);
                 return response()->json(['error' => 'Unable to reset password'], 400);
             }
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::warning('Password Reset Validation Failed:', [
-                'email' => $request->email,
+                'token' => $request->input('token'),
                 'errors' => $e->errors(),
             ]);
             return response()->json(['error' => $e->errors()], 422);
         } catch (\Exception $e) {
             Log::error('Failed to Reset Password:', [
-                'email' => $request->email,
+                'token' => $request->input('token'),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
