@@ -7,6 +7,7 @@ use App\Mail\PasswordReset;
 use App\Mail\SendCustomEmail;
 use App\Models\Course;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Models\UserAnswer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -464,6 +465,7 @@ class UserController extends Controller
                 $details = [
                     'to' => $email,
                     'token' => $token,
+                    'fullname' => $user->fullname,
                 ];
                 Mail::to($email)->send(new PasswordReset($details));
             });

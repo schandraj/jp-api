@@ -32,7 +32,7 @@ class PasswordReset extends Mailable
      */
     public function build()
     {
-        return $this->subject('Reset Your Password')
+        return $this->subject('Konfirmasi Permintaan Reset Password')
             ->view('emails.password-reset')
             ->with('details', $this->details);
     }
