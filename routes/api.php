@@ -14,6 +14,7 @@ use App\Http\Controllers\User\CategoryController as UserCategoryController;
 use App\Http\Controllers\User\UserController as UserUserController;
 use App\Http\Middleware\AdminOnly;
 use App\Http\Middleware\UserMiddleware;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -46,7 +47,9 @@ Route::middleware(['auth:sanctum', AdminOnly::class])->prefix('admin')->group(fu
 });
 
 Route::prefix('user')->group(function () {
-    Route::apiResource('courses', UserCourseController::class);
+    Route::get('/courses', [UserCourseController::class, 'index']);
+    Route::get('/courses/{id}', [UserCourseController::class, 'show']);
+    Route::get('/courses/login/{id}', [UserCourseController::class, 'showLogin'])->middleware('auth:api');
     Route::get('/courses/cbt/{id}', [UserCourseController::class, 'getCbt'])->middleware(['auth:api', UserMiddleware::class]);
     Route::get('/courses/purchased/all', [UserCourseController::class, 'getPurchasedCoursesByType'])->middleware(['auth:api', UserMiddleware::class]);
     Route::post('/courses/cbt/submit-answer', [UserUserController::class, 'submitAnswers'])->middleware('auth:api');

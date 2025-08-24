@@ -88,6 +88,41 @@ class CourseController extends Controller
                 $query->where('status', 'paid');
             }])->where('status', 'PUBLISHED')
                 ->findOrFail($id);
+
+            $isBought = false;
+            $course->is_bought = $isBought;
+
+            return response()->json([
+                'message' => 'Course retrieved successfully',
+                'data' => $course
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Course not found'], 404);
+        }
+    }
+
+    public function showLogin($id)
+    {
+        try {
+            $course = Course::with(['category', 'topics.lessons', 'crossSells.crossCourse' => function ($query) {
+                $query->select('id', 'title', 'image', 'category_id', 'course_level', 'price', 'status');
+            }, 'benefits', 'questions'])
+                ->withCount(['questions','transactions as student_count' => function ($query) {
+                    $query->where('status', 'paid');
+                }])->where('status', 'PUBLISHED')
+                ->findOrFail($id);
+
+            $isBought = false;
+            if (Auth::check()) {
+                $user = Auth::user();
+                $isBought = $course->transactions()
+                    ->where('email', $user->email)
+                    ->where('status', 'paid')
+                    ->exists();
+            }
+
+            $course->is_bought = $isBought;
+
             return response()->json([
                 'message' => 'Course retrieved successfully',
                 'data' => $course

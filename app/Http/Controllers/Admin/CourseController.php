@@ -443,7 +443,7 @@ class CourseController extends Controller
             DB::beginTransaction();
 
             $course = Course::findOrFail($id);
-            $oldThumbnailPath = $course->thumbnail;
+            $oldThumbnailPath = $course->image;
             $oldPosterPath = $course->poster;
 
             // Handle file uploads
