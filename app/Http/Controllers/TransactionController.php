@@ -220,18 +220,35 @@ class TransactionController extends Controller
         }
     }
 
-    public function checkTransactionStatus(Request $request, $orderId)
+    public function checkTransactionStatus(Request $request)
     {
         try {
-            // Validate request parameter
-            $validator = Validator::make(['order_id' => $orderId], [
-                'order_id' => 'required|string',
+            // Validate request data
+            $validator = Validator::make($request->all(), [
+                'email' => 'required|email',
             ]);
 
             if ($validator->fails()) {
-                Log::warning('Invalid Status Check Request:', ['errors' => $validator->errors(), 'order_id' => $orderId]);
+                Log::warning('Invalid Status Check Request:', ['errors' => $validator->errors(), 'input' => $request->all()]);
                 return response()->json(['error' => $validator->errors()], 422);
             }
+
+            $email = $request->input('email');
+            $user = $request->user();
+            if (!$user || !$user->is_admin) {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            // Find the latest transaction for the given email
+            $latestTransaction = Transaction::where('email', $email)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if (!$latestTransaction) {
+                throw new ModelNotFoundException('No transactions found for email: ' . $email);
+            }
+
+            $orderId = $latestTransaction->order_id;
 
             // Initialize Guzzle client and set up Midtrans API request
             $client = new Client();
@@ -295,6 +312,7 @@ class TransactionController extends Controller
             // Log and return response
             Log::info('Transaction Status Checked:', [
                 'order_id' => $orderId,
+                'email' => $email,
                 'new_status' => $transactions->first()->status,
                 'midtrans_response' => $data,
             ]);
@@ -303,24 +321,27 @@ class TransactionController extends Controller
                 'message' => 'Transaction status checked successfully',
                 'data' => [
                     'order_id' => $orderId,
+                    'email' => $email,
                     'status' => $transactions->first()->status,
                     'details' => $data,
                 ]
             ], 200);
         } catch (GuzzleException $e) {
             Log::error('Midtrans Status Check Error:', [
-                'order_id' => $orderId,
+                'order_id' => isset($orderId) ? $orderId : 'N/A',
+                'email' => $email,
                 'error' => $e->getMessage(),
                 'code' => $e->getCode(),
                 'response' => $e->getResponse() ? $e->getResponse()->getBody()->getContents() : null,
             ]);
             return response()->json(['error' => 'Failed to check transaction status: ' . $e->getMessage()], 500);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            Log::error('Transaction Not Found:', ['order_id' => $orderId, 'error' => $e->getMessage()]);
+        } catch (ModelNotFoundException $e) {
+            Log::error('Transaction Not Found:', ['email' => $email, 'error' => $e->getMessage()]);
             return response()->json(['error' => 'Transaction not found: ' . $e->getMessage()], 404);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Status Check Processing Error:', [
-                'order_id' => $orderId,
+                'order_id' => isset($orderId) ? $orderId : 'N/A',
+                'email' => $email,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);

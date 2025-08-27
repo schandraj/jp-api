@@ -25,7 +25,7 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::post('/payment_url', [TransactionControllerGlobal::class, 'createTransaction']);
 Route::post('/notification', [TransactionControllerGlobal::class, 'callbackMidtrans']);
 Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
-Route::get('/transactions/check-status/{order_id}', [TransactionControllerGlobal::class, 'checkTransactionStatus']);
+Route::post('/transactions/check-status', [TransactionControllerGlobal::class, 'checkTransactionStatus']);
 
 Route::middleware('auth:sanctum')->get('/users', [UserController::class, 'index']);
 
