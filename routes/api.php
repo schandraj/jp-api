@@ -26,6 +26,7 @@ Route::post('/payment_url', [TransactionControllerGlobal::class, 'createTransact
 Route::post('/notification', [TransactionControllerGlobal::class, 'callbackMidtrans']);
 Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
 Route::post('/transactions/check-status', [TransactionControllerGlobal::class, 'checkTransactionStatus']);
+Route::post('/transactions/update-status', [TransactionControllerGlobal::class, 'updateTransaction']);
 
 Route::middleware('auth:sanctum')->get('/users', [UserController::class, 'index']);
 

@@ -125,12 +125,19 @@ class TransactionController extends Controller
                 throw new \Exception('Midtrans API returned non-success status: ' . $response->getStatusCode() . ' - ' . json_encode($data));
             }
 
+            // Update transactions with redirect_url from Midtrans response
+            $redirectUrl = $data['redirect_url'] ?? null;
+            if ($redirectUrl) {
+                Transaction::where('order_id', $order_id)->update(['redirect_url' => $redirectUrl]);
+            }
+
             DB::commit();
 
             Log::info('Midtrans Transaction Success:', [
                 'order_id' => $order_id,
                 'course_ids' => array_column($courses, 'course_id'),
                 'response' => $data,
+                'redirect_url' => $redirectUrl,
             ]);
 
             return response()->json([
@@ -285,7 +292,7 @@ class TransactionController extends Controller
             $transactions = Transaction::where('order_id', $orderId)->get();
 
             if ($transactions->isEmpty()) {
-                throw new \Illuminate\Database\Eloquent\ModelNotFoundException('No transactions found for order ID: ' . $orderId);
+                throw new ModelNotFoundException('No transactions found for order ID: ' . $orderId);
             }
 
             // Status mapping with optimized logic
@@ -346,6 +353,79 @@ class TransactionController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
             return response()->json(['error' => 'Failed to process status check: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function updateTransaction(Request $request)
+    {
+        try {
+            // Validate request data
+            $validator = Validator::make($request->all(), [
+                'order_id' => 'required|string',
+                'transaction_status' => 'required|string|in:capture,settlement,pending,deny,expire,cancel',
+            ]);
+
+            if ($validator->fails()) {
+                Log::warning('Invalid Update Transaction Request:', ['errors' => $validator->errors(), 'input' => $request->all()]);
+                return response()->json(['error' => $validator->errors()], 422);
+            }
+
+            $order_id = $request->input('order_id');
+            $transaction_status = $request->input('transaction_status');
+
+            // Find all transactions with the same order_id
+            $transactions = Transaction::where('order_id', $order_id)->get();
+            if ($transactions->isEmpty()) {
+                throw new ModelNotFoundException('No transactions found for order ID: ' . $order_id);
+            }
+
+            // Status mapping with optimized logic
+            $statusMap = [
+                'capture' => ['status' => 'paid'],
+                'settlement' => ['status' => 'paid'],
+                'pending' => ['status' => 'pending'],
+                'deny' => ['status' => 'failed'],
+                'expire' => ['status' => 'failed'],
+                'cancel' => ['status' => 'failed'],
+            ];
+
+            // Process status update
+            $statusUpdated = false;
+            $newStatus = null;
+            if (isset($statusMap[$transaction_status])) {
+                $newStatus = $statusMap[$transaction_status]['status'];
+                $transactions->each->update(['status' => $newStatus]);
+                $statusUpdated = true;
+            }
+
+            if (!$statusUpdated) {
+                Log::warning('Unknown or unhandled transaction status:', ['status' => $transaction_status, 'order_id' => $order_id]);
+                return response()->json(['error' => 'Unknown or unhandled transaction status'], 400);
+            }
+
+            // Log the update
+            Log::info('Transaction Status Updated:', [
+                'order_id' => $order_id,
+                'new_status' => $newStatus,
+            ]);
+
+            return response()->json([
+                'message' => 'Transaction status updated successfully',
+                'data' => [
+                    'order_id' => $order_id,
+                    'status' => $newStatus, // Ensure status matches statusMap
+                ]
+            ], 200);
+        } catch (ModelNotFoundException $e) {
+            Log::error('Transaction Not Found:', ['order_id' => $order_id, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'Transaction not found: ' . $e->getMessage()], 404);
+        } catch (\Exception $e) {
+            Log::error('Update Transaction Error:', [
+                'order_id' => $order_id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['error' => 'Failed to update transaction: ' . $e->getMessage()], 500);
         }
     }
 }

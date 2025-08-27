@@ -4,6 +4,7 @@ namespace App\Http\Controllers\User;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -113,15 +114,28 @@ class CourseController extends Controller
                 ->findOrFail($id);
 
             $isBought = false;
+            $paymentUrl = null;
             if (Auth::check()) {
                 $user = Auth::user();
                 $isBought = $course->transactions()
                     ->where('email', $user->email)
                     ->where('status', 'paid')
                     ->exists();
+
+                // Get the latest pending transaction's redirect_url as payment_url
+                $pendingTransaction = Transaction::where('course_id', $id)
+                    ->where('email', $user->email)
+                    ->where('status', 'pending')
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+
+                if ($pendingTransaction) {
+                    $paymentUrl = $pendingTransaction->redirect_url;
+                }
             }
 
             $course->is_bought = $isBought;
+            $course->payment_url = $paymentUrl;
 
             return response()->json([
                 'message' => 'Course retrieved successfully',
