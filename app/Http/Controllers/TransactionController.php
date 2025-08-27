@@ -9,6 +9,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -413,7 +414,7 @@ class TransactionController extends Controller
                 'message' => 'Transaction status updated successfully',
                 'data' => [
                     'order_id' => $order_id,
-                    'status' => $newStatus, // Ensure status matches statusMap
+                    'order_status' => $newStatus, // Ensure status matches statusMap
                 ]
             ], 200);
         } catch (ModelNotFoundException $e) {
