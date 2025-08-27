@@ -10,6 +10,7 @@ use App\Models\CourseQuestion;
 use App\Models\CourseTopic;
 use App\Models\QuestionAnswer;
 use App\Models\TopicLesson;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -624,6 +625,26 @@ class CourseController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['error' => 'Failed to publish course: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function getAnalytics(Request $request)
+    {
+        try {
+            // Calculate analytics data for all transactions
+            $analytics = Transaction::where('status', 'paid')
+                ->selectRaw('COUNT(*) as transaction_count, SUM(total) as revenue')
+                ->first();
+
+            $transactionCount = $analytics ? $analytics->transaction_count : 0;
+            $revenue = $analytics ? $analytics->revenue ?? 0 : 0;
+
+            return response()->json([
+                'transaction_count' => $transactionCount,
+                'revenue' => $revenue
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to retrieve analytics data: ' . $e->getMessage()], 500);
         }
     }
 }

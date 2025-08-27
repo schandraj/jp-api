@@ -60,13 +60,26 @@ class UserController extends Controller
 
             // Split courses by type
             $paidCourses = $transactions->where('course.type', 'Course')->pluck('course')->unique('id')->values();
-            $paidCBT = $transactions->where('course.type', 'CBT')->pluck('course')->unique('id')->values();
             $paidLiveTeaching = $transactions->where('course.type', 'Live_Teaching')->pluck('course')->unique('id')->values();
+
+            // Get courses where user has answered questions
+            $answeredCourseIds = UserAnswer::where('user_id', $user->id)->pluck('course_id')->unique()->values();
+
+            // Filter paidCBT to exclude courses with answers
+            $paidCBT = $transactions->where('course.type', 'CBT')
+                ->pluck('course')
+                ->unique('id')
+                ->reject(function ($course) use ($answeredCourseIds) {
+                    return $answeredCourseIds->contains($course->id);
+                })
+                ->values();
 
             \Log::info('Dashboard Query Result:', [
                 'email' => $user->email,
                 'typeCounts' => $typeCounts,
-                'paidCoursesCount' => $paidCourses->count() + $paidCBT->count() + $paidLiveTeaching->count()
+                'paidCoursesCount' => $paidCourses->count() + $paidCBT->count() + $paidLiveTeaching->count(),
+                'answeredCourseIds' => $answeredCourseIds,
+                'paidCBTCount' => $paidCBT->count()
             ]);
 
             return response()->json([

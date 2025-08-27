@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Course;
 use App\Models\Transaction;
+use Exception;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -215,6 +217,114 @@ class TransactionController extends Controller
         } catch (\Exception $e) {
             Log::error('Notification Processing Error:', ['order_id' => $order_id, 'error' => $e->getMessage()]);
             return response()->json(['error' => 'Failed to process notification: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function checkTransactionStatus(Request $request, $orderId)
+    {
+        try {
+            // Validate request parameter
+            $validator = Validator::make(['order_id' => $orderId], [
+                'order_id' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                Log::warning('Invalid Status Check Request:', ['errors' => $validator->errors(), 'order_id' => $orderId]);
+                return response()->json(['error' => $validator->errors()], 422);
+            }
+
+            // Initialize Guzzle client and set up Midtrans API request
+            $client = new Client();
+            $serverKey = config('midtrans.server_key') . ':';
+            $authHeader = 'Basic ' . base64_encode($serverKey);
+            $statusUrl = config('midtrans.base_url') . '/v2/' . $orderId . '/status';
+
+            Log::debug('Midtrans Status Check Request:', ['order_id' => $orderId, 'url' => $statusUrl]);
+            $response = $client->request('GET', $statusUrl, [
+                'headers' => [
+                    'accept' => 'application/json',
+                    'Authorization' => $authHeader,
+                    'content-type' => 'application/json',
+                ],
+                'timeout' => 10,
+            ]);
+
+            $data = json_decode($response->getBody()->getContents(), true);
+
+            if ($response->getStatusCode() !== 200) {
+                throw new \Exception('Midtrans API returned non-success status: ' . $response->getStatusCode() . ' - ' . json_encode($data));
+            }
+
+            // Extract status from Midtrans response
+            $transactionStatus = $data['transaction_status'] ?? null;
+            $paymentType = $data['payment_type'] ?? null;
+            $fraudStatus = $data['fraud_status'] ?? null;
+
+            if (!$transactionStatus) {
+                throw new \Exception('Invalid response from Midtrans: transaction_status not found');
+            }
+
+            // Find all transactions with the same order_id
+            $transactions = Transaction::where('order_id', $orderId)->get();
+
+            if ($transactions->isEmpty()) {
+                throw new \Illuminate\Database\Eloquent\ModelNotFoundException('No transactions found for order ID: ' . $orderId);
+            }
+
+            // Status mapping with optimized logic
+            $statusMap = [
+                'capture' => fn() => $paymentType === 'credit_card' && $fraudStatus === 'accept' ? $transactions->each->update(['status' => 'paid']) : null,
+                'settlement' => fn() => $transactions->each->update(['status' => 'paid']),
+                'pending' => fn() => $transactions->each->update(['status' => 'pending']),
+                'deny' => fn() => $transactions->each->update(['status' => 'failed']),
+                'expire' => fn() => $transactions->each->update(['status' => 'failed']),
+                'cancel' => fn() => $transactions->each->update(['status' => 'failed']),
+            ];
+
+            // Process status update
+            $statusUpdated = false;
+            if (isset($statusMap[$transactionStatus])) {
+                $statusMap[$transactionStatus]();
+                $statusUpdated = true;
+            }
+
+            if (!$statusUpdated) {
+                Log::warning('Unknown or unhandled transaction status:', ['status' => $transactionStatus, 'order_id' => $orderId]);
+            }
+
+            // Log and return response
+            Log::info('Transaction Status Checked:', [
+                'order_id' => $orderId,
+                'new_status' => $transactions->first()->status,
+                'midtrans_response' => $data,
+            ]);
+
+            return response()->json([
+                'message' => 'Transaction status checked successfully',
+                'data' => [
+                    'order_id' => $orderId,
+                    'status' => $transactions->first()->status,
+                    'details' => $data,
+                ]
+            ], 200);
+        } catch (GuzzleException $e) {
+            Log::error('Midtrans Status Check Error:', [
+                'order_id' => $orderId,
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+                'response' => $e->getResponse() ? $e->getResponse()->getBody()->getContents() : null,
+            ]);
+            return response()->json(['error' => 'Failed to check transaction status: ' . $e->getMessage()], 500);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('Transaction Not Found:', ['order_id' => $orderId, 'error' => $e->getMessage()]);
+            return response()->json(['error' => 'Transaction not found: ' . $e->getMessage()], 404);
+        } catch (\Exception $e) {
+            Log::error('Status Check Processing Error:', [
+                'order_id' => $orderId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['error' => 'Failed to process status check: ' . $e->getMessage()], 500);
         }
     }
 }

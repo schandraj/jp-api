@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
+use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -29,14 +30,17 @@ class DashboardController extends Controller
             $stats = [
                 'live_teaching' => Course::where('type', 'Live_Teaching')->count(),
                 'cbt' => Course::where('type', 'CBT')->count(),
-//                'sertifikat' => Course::whereHas('benefits', function ($query) {
-//                    $query->where('name', 'like', '%Certificate%');
-//                })->count(),
                 'users' => User::count(),
                 'courses' => Course::where('type', 'Course')->count(),
-//                'total_earnings' => Course::where('status', 'PUBLISHED')
-//                    ->sum('price'),
             ];
+
+            // Calculate transaction analytics
+            $analytics = Transaction::where('status', 'paid')
+                ->selectRaw('COUNT(*) as transaction_count, SUM(total) as revenue')
+                ->first();
+
+            $stats['registrants'] = $analytics ? $analytics->transaction_count : 0;
+            $stats['revenue'] = $analytics ? $analytics->revenue ?? 0 : 0;
 
             return response()->json([
                 'message' => 'Dashboard statistics retrieved successfully',
