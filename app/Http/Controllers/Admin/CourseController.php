@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Benefit;
+use App\Models\CertificateDownload;
 use App\Models\Course;
 use App\Models\CourseCrossSell;
 use App\Models\CourseQuestion;
@@ -12,6 +13,7 @@ use App\Models\QuestionAnswer;
 use App\Models\TopicLesson;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -628,20 +630,154 @@ class CourseController extends Controller
         }
     }
 
-    public function getAnalytics(Request $request)
+    public function getAnalytics(Request $request, $id)
     {
         try {
-            // Calculate analytics data for all transactions
+            // Calculate total analytics data for the specific course
             $analytics = Transaction::where('status', 'paid')
+                ->where('course_id', $id)
                 ->selectRaw('COUNT(*) as transaction_count, SUM(total) as revenue')
                 ->first();
 
             $transactionCount = $analytics ? $analytics->transaction_count : 0;
-            $revenue = $analytics ? $analytics->revenue ?? 0 : 0;
+            $revenue = $analytics ? number_format(($analytics->revenue ?? 0), 2) : '0.00';
+            $certificate = CertificateDownload::where('course_id', $id)->count();
+
+            // Current month and year for weekly breakdown
+            $currentMonth = Carbon::now()->month;
+            $currentYear = Carbon::now()->year;
+
+            // Monthly (Weekly) transaction count and revenue
+            $weeklyTransactions = Transaction::where('status', 'paid')
+                ->where('course_id', $id)
+                ->whereYear('created_at', $currentYear)
+                ->whereMonth('created_at', $currentMonth)
+                ->selectRaw('WEEK(created_at) - WEEK(DATE_SUB(DATE_FORMAT(NOW(), "%Y-%m-01"), INTERVAL 1 DAY)) + 1 as week, COUNT(*) as count, SUM(total) as revenue')
+                ->groupBy('week')
+                ->orderBy('week')
+                ->get()
+                ->keyBy('week');
+
+            $monthlyChart = [
+                'week_1' => 0,
+                'week_2' => 0,
+                'week_3' => 0,
+                'week_4' => 0,
+            ];
+
+            for ($week = 1; $week <= 4; $week++) {
+                if (isset($weeklyTransactions[$week])) {
+                    $monthlyChart['week_' . $week] = (int)$weeklyTransactions[$week]->count;
+                }
+            }
+
+            $weeklyRevenue = Transaction::where('status', 'paid')
+                ->where('course_id', $id)
+                ->whereYear('created_at', $currentYear)
+                ->whereMonth('created_at', $currentMonth)
+                ->selectRaw('WEEK(created_at) - WEEK(DATE_SUB(DATE_FORMAT(NOW(), "%Y-%m-01"), INTERVAL 1 DAY)) + 1 as week, SUM(total) as revenue')
+                ->groupBy('week')
+                ->orderBy('week')
+                ->get()
+                ->keyBy('week');
+
+            $monthlyRevenueChart = [
+                'week_1' => '0.00',
+                'week_2' => '0.00',
+                'week_3' => '0.00',
+                'week_4' => '0.00',
+            ];
+
+            for ($week = 1; $week <= 4; $week++) {
+                if (isset($weeklyRevenue[$week])) {
+                    $monthlyRevenueChart['week_' . $week] = number_format(($weeklyRevenue[$week]->revenue ?? 0), 2);
+                }
+            }
+
+            // Yearly transaction count and revenue
+            $yearlyTransactions = Transaction::where('status', 'paid')
+                ->where('course_id', $id)
+                ->whereYear('created_at', $currentYear)
+                ->selectRaw('MONTH(created_at) as month, COUNT(*) as count')
+                ->groupBy('month')
+                ->orderBy('month')
+                ->get()
+                ->keyBy('month');
+
+            $yearlyChart = [
+                'january' => 0,
+                'february' => 0,
+                'march' => 0,
+                'april' => 0,
+                'may' => 0,
+                'june' => 0,
+                'july' => 0,
+                'august' => 0,
+                'september' => 0,
+                'october' => 0,
+                'november' => 0,
+                'december' => 0,
+            ];
+
+            $months = [
+                1 => 'january', 2 => 'february', 3 => 'march', 4 => 'april',
+                5 => 'may', 6 => 'june', 7 => 'july', 8 => 'august',
+                9 => 'september', 10 => 'october', 11 => 'november', 12 => 'december',
+            ];
+
+            foreach ($months as $monthNum => $monthName) {
+                if (isset($yearlyTransactions[$monthNum])) {
+                    $yearlyChart[$monthName] = (int)$yearlyTransactions[$monthNum]->count;
+                }
+            }
+
+            $yearlyRevenue = Transaction::where('status', 'paid')
+                ->where('course_id', $id)
+                ->whereYear('created_at', $currentYear)
+                ->selectRaw('MONTH(created_at) as month, SUM(total) as revenue')
+                ->groupBy('month')
+                ->orderBy('month')
+                ->get()
+                ->keyBy('month');
+
+            $yearlyRevenueChart = [
+                'january' => '0.00',
+                'february' => '0.00',
+                'march' => '0.00',
+                'april' => '0.00',
+                'may' => '0.00',
+                'june' => '0.00',
+                'july' => '0.00',
+                'august' => '0.00',
+                'september' => '0.00',
+                'october' => '0.00',
+                'november' => '0.00',
+                'december' => '0.00',
+            ];
+
+            foreach ($months as $monthNum => $monthName) {
+                if (isset($yearlyRevenue[$monthNum])) {
+                    $yearlyRevenueChart[$monthName] = number_format(($yearlyRevenue[$monthNum]->revenue ?? 0), 2);
+                }
+            }
 
             return response()->json([
-                'transaction_count' => $transactionCount,
-                'revenue' => $revenue
+                'message' => 'Analytics retrieved successfully',
+                'data' => [
+                    'transaction_count' => $transactionCount,
+                    'revenue' => $revenue,
+                    'certificate_count' => $certificate,
+                    'chart' => [
+                        'transaction' => [
+                            'monthly' => $monthlyChart,
+                            'yearly' => $yearlyChart,
+                        ],
+                        'revenue' => [
+                            'monthly' => $monthlyRevenueChart,
+                            'yearly' => $yearlyRevenueChart,
+                        ],
+                    ],
+                ]
             ], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to retrieve analytics data: ' . $e->getMessage()], 500);

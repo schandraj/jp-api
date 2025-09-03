@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CourseController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CertificateController;
 use App\Http\Controllers\TransactionController as TransactionControllerGlobal;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\GoogleAuthController;
@@ -44,6 +45,7 @@ Route::middleware(['auth:sanctum', AdminOnly::class])->prefix('admin')->group(fu
     Route::post('courses/{course}/publish', [CourseController::class, 'publish']);
     Route::get('courses/slug/{slug}', [CourseController::class, 'showBySlug']);
     Route::get('courses/title/{title}', [CourseController::class, 'showByTitle']);
+    Route::get('courses/analytic/{id}', [CourseController::class, 'getAnalytics']);
     Route::get('dashboard', [DashboardController::class, 'index']);
     Route::apiResource('transactions', \App\Http\Controllers\Admin\TransactionController::class);
 });
@@ -67,5 +69,6 @@ Route::prefix('user')->group(function () {
     Route::post('/send-email', [App\Http\Controllers\User\UserController::class, 'sendEmail']);
     Route::post('/password/reset-link', [App\Http\Controllers\User\UserController::class, 'sendPasswordResetLink']);
     Route::post('/password/reset', [App\Http\Controllers\User\UserController::class, 'resetPassword']);
+    Route::post('/certificate/download', [CertificateController::class, 'downloadCertificate'])->middleware(['auth:api']);
 });
 
