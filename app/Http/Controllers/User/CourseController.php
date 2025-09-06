@@ -44,6 +44,9 @@ class CourseController extends Controller
             // Apply filters
             if ($type) {
                 $query->where('type', $type);
+                if ($type === 'Live_Teaching') {
+                    $query->where('start_date', '>', now());
+                }
             }
             if ($category) {
                 $query->where('category_id', $category);
@@ -71,7 +74,7 @@ class CourseController extends Controller
                 'data' => $courses,
             ], 200);
         } catch (\Exception $e) {
-            \Log::error('Failed to retrieve courses:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            Log::error('Failed to retrieve courses:', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return response()->json(['error' => 'Failed to retrieve courses: ' . $e->getMessage()], 500);
         }
     }

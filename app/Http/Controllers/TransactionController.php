@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\PurchaseConfirmation;
+use App\Mail\TransactionReminder;
 use App\Models\Course;
 use App\Models\Transaction;
 use Exception;
@@ -12,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Midtrans\Config;
 use Midtrans\Snap;
@@ -131,6 +134,14 @@ class TransactionController extends Controller
             if ($redirectUrl) {
                 Transaction::where('order_id', $order_id)->update(['redirect_url' => $redirectUrl]);
             }
+
+            $courseTitle = Course::find($courses[0]['course_id'])->title ?? 'Unknown Course';
+            Mail::to($userEmail)->send(new TransactionReminder([
+                'name' => $request->fullname,
+                'course_title' => $courseTitle,
+                'total' => $total,
+                'url' => config('app.web_url').'/login'
+            ]));
 
             DB::commit();
 
@@ -404,6 +415,29 @@ class TransactionController extends Controller
                 return response()->json(['error' => 'Unknown or unhandled transaction status'], 400);
             }
 
+            // Send email if status is paid
+            if ($newStatus === 'paid') {
+                $transaction = $transactions->first();
+                $course = \App\Models\Course::find($transaction->course_id);
+                $courseTitle = $course ? $course->title : 'Unknown Course';
+                $paymentMethod = 'Midtrans'; // Assuming Midtrans as the payment method; adjust if dynamic
+                $url = config('app.web_url');
+                if ($course->type === 'CBT') {
+                    $url = $url . '/student/cbt-instruction/' . $course->id;
+                } elseif ($course->type === 'Course') {
+                    $url = $url . '/student/course-content/' . $course->id;
+                } elseif ($course->type === 'Live_Teaching') {
+                    $url = $url . '/student/live-event/' . $course->id;
+                }
+                Mail::to($transaction->email)->send(new PurchaseConfirmation([
+                    'name' => $transaction->fullname ?? 'User', // Assuming fullname is in transactions or fetch from User model
+                    'course_title' => $courseTitle,
+                    'total' => $transaction->total,
+                    'payment_method' => $paymentMethod,
+                    'url' => $url,
+                ]));
+            }
+
             // Log the update
             Log::info('Transaction Status Updated:', [
                 'order_id' => $order_id,
@@ -414,7 +448,7 @@ class TransactionController extends Controller
                 'message' => 'Transaction status updated successfully',
                 'data' => [
                     'order_id' => $order_id,
-                    'order_status' => $newStatus, // Ensure status matches statusMap
+                    'order_status' => $newStatus,
                 ]
             ], 200);
         } catch (ModelNotFoundException $e) {
