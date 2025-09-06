@@ -36,7 +36,7 @@ class CategoryController extends Controller
                     $query->where('type', 'CBT')->where('status', 'PUBLISHED');
                 },
                 'courses as live_teaching_count' => function ($query) {
-                    $query->where('type', 'Live_Teaching')->where('status', 'PUBLISHED');
+                    $query->where('type', 'Live_Teaching')->where('status', 'PUBLISHED')->where('start_date', '>', now());;
                 },
             ])->paginate($limit);
 
