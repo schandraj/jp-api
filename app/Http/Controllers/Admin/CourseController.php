@@ -639,6 +639,29 @@ class CourseController extends Controller
         }
     }
 
+    public function unpublish(Request $request, $id)
+    {
+        try {
+            $course = Course::findOrFail($id);
+
+            DB::beginTransaction();
+
+            $course->update([
+                'status' => 'UNPUBLISHED',
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Course unpublished successfully',
+                'data' => $course
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => 'Failed to publish course: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function getAnalytics(Request $request, $id)
     {
         try {

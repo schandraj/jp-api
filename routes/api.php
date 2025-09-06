@@ -43,6 +43,7 @@ Route::middleware(['auth:sanctum', AdminOnly::class])->prefix('admin')->group(fu
     Route::apiResource('benefits', BenefitController::class);
     Route::apiResource('courses', CourseController::class);
     Route::post('courses/{course}/publish', [CourseController::class, 'publish']);
+    Route::post('courses/{course}/unpublish', [CourseController::class, 'unpublish']);
     Route::get('courses/slug/{slug}', [CourseController::class, 'showBySlug']);
     Route::get('courses/title/{title}', [CourseController::class, 'showByTitle']);
     Route::get('courses/analytic/{id}', [CourseController::class, 'getAnalytics']);
