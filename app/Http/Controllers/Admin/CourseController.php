@@ -672,7 +672,7 @@ class CourseController extends Controller
                 ->first();
 
             $transactionCount = $analytics ? $analytics->transaction_count : 0;
-            $revenue = $analytics ? number_format(($analytics->revenue ?? 0) / 100, 2) : '0.00';
+            $revenue = $analytics ? number_format(($analytics->revenue ?? 0), 2) : '0.00';
             $certificate = CertificateDownload::where('course_id', $id)->count();
 
             // Current month and year for weekly breakdown
@@ -722,7 +722,7 @@ class CourseController extends Controller
 
             for ($week = 1; $week <= 4; $week++) {
                 if (isset($weeklyRevenue[$week])) {
-                    $monthlyRevenueChart['week_' . $week] = number_format(($weeklyRevenue[$week]->revenue ?? 0) / 100, 2);
+                    $monthlyRevenueChart['week_' . $week] = number_format(($weeklyRevenue[$week]->revenue ?? 0), 2);
                 }
             }
 
@@ -789,7 +789,7 @@ class CourseController extends Controller
 
             foreach ($months as $monthNum => $monthName) {
                 if (isset($yearlyRevenue[$monthNum])) {
-                    $yearlyRevenueChart[$monthName] = number_format(($yearlyRevenue[$monthNum]->revenue ?? 0) / 100, 2);
+                    $yearlyRevenueChart[$monthName] = number_format(($yearlyRevenue[$monthNum]->revenue ?? 0), 2);
                 }
             }
 
@@ -848,7 +848,7 @@ class CourseController extends Controller
             foreach ($days as $index => $day) {
                 $dayKey = 'day_' . ($index + 1);
                 if (isset($weeklyRevenueLast7Days[$day])) {
-                    $weeklyRevenueChart[$dayKey] = number_format(($weeklyRevenueLast7Days[$day]->revenue ?? 0) / 100, 2);
+                    $weeklyRevenueChart[$dayKey] = number_format(($weeklyRevenueLast7Days[$day]->revenue ?? 0), 2);
                 }
             }
 
