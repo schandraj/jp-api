@@ -98,50 +98,77 @@ class TransactionController extends Controller
                 throw new \Exception('Total amount mismatch: Calculated ' . $grossAmount . ' vs provided ' . $total);
             }
 
-            $params = [
-                'transaction_details' => [
-                    'order_id' => $order_id,
-                    'gross_amount' => $grossAmount,
-                ],
-                'customer_details' => [
-                    'first_name' => $request->fullname,
-                    'email' => $userEmail,
-                    'phone' => $request->phone_number,
-                ],
-            ];
+            $data = [];
+            $redirectUrl = null;
 
-            $jsonStr = json_encode($params, JSON_UNESCAPED_SLASHES);
+            // Handle free transaction (total = 0) without Midtrans
+            if ($total == 0) {
+                Transaction::where('order_id', $order_id)->update(['status' => 'paid']);
+                $transaction = Transaction::where('order_id', $order_id)->first();
+                $course = Course::find($transaction->course_id);
+                $courseTitle = $course ? $course->title : 'Unknown Course';
+                $paymentMethod = 'Free'; // Assuming Midtrans as the payment method; adjust if dynamic
+                $url = config('app.web_url');
+                if ($course->type === 'CBT') {
+                    $url = $url . '/student/cbt-instruction/' . $course->id;
+                } elseif ($course->type === 'Course') {
+                    $url = $url . '/student/course-content/' . $course->id;
+                } elseif ($course->type === 'Live_Teaching') {
+                    $url = $url . '/student/live-event/' . $course->id;
+                }
+                Mail::to($transaction->email)->send(new PurchaseConfirmation([
+                    'name' => $request->fullname ?? 'User',
+                    'course_title' => $courseTitle,
+                    'total' => $transaction->total,
+                    'payment_method' => $paymentMethod,
+                    'url' => $url,
+                ]));
+            } else {
+                $params = [
+                    'transaction_details' => [
+                        'order_id' => $order_id,
+                        'gross_amount' => $grossAmount,
+                    ],
+                    'customer_details' => [
+                        'first_name' => $request->fullname,
+                        'email' => $userEmail,
+                        'phone' => $request->phone_number,
+                    ],
+                ];
 
-            Log::debug('Midtrans Request:', ['params' => $params, 'url' => config('midtrans.url')]);
-            $response = $client->request('POST', config('midtrans.url'), [
-                'body' => $jsonStr,
-                'headers' => [
-                    'accept' => 'application/json',
-                    'Authorization' => $authHeader,
-                    'content-type' => 'application/json',
-                ],
-                'timeout' => 10,
-            ]);
+                $jsonStr = json_encode($params, JSON_UNESCAPED_SLASHES);
 
-            $data = json_decode($response->getBody()->getContents(), true);
+                Log::debug('Midtrans Request:', ['params' => $params, 'url' => config('midtrans.url')]);
+                $response = $client->request('POST', config('midtrans.url'), [
+                    'body' => $jsonStr,
+                    'headers' => [
+                        'accept' => 'application/json',
+                        'Authorization' => $authHeader,
+                        'content-type' => 'application/json',
+                    ],
+                    'timeout' => 10,
+                ]);
 
-            if ($response->getStatusCode() !== 200 && $response->getStatusCode() !== 201) {
-                throw new \Exception('Midtrans API returned non-success status: ' . $response->getStatusCode() . ' - ' . json_encode($data));
+                $data = json_decode($response->getBody()->getContents(), true);
+
+                if ($response->getStatusCode() !== 200 && $response->getStatusCode() !== 201) {
+                    throw new \Exception('Midtrans API returned non-success status: ' . $response->getStatusCode() . ' - ' . json_encode($data));
+                }
+
+                // Update transactions with redirect_url from Midtrans response
+                $redirectUrl = $data['redirect_url'] ?? null;
+                if ($redirectUrl) {
+                    Transaction::where('order_id', $order_id)->update(['redirect_url' => $redirectUrl]);
+                }
+
+                $courseTitle = Course::find($courses[0]['course_id'])->title ?? 'Unknown Course';
+                Mail::to($userEmail)->send(new TransactionReminder([
+                    'name' => $request->fullname,
+                    'course_title' => $courseTitle,
+                    'total' => $total,
+                    'url' => config('app.web_url').'/login'
+                ]));
             }
-
-            // Update transactions with redirect_url from Midtrans response
-            $redirectUrl = $data['redirect_url'] ?? null;
-            if ($redirectUrl) {
-                Transaction::where('order_id', $order_id)->update(['redirect_url' => $redirectUrl]);
-            }
-
-            $courseTitle = Course::find($courses[0]['course_id'])->title ?? 'Unknown Course';
-            Mail::to($userEmail)->send(new TransactionReminder([
-                'name' => $request->fullname,
-                'course_title' => $courseTitle,
-                'total' => $total,
-                'url' => config('app.web_url').'/login'
-            ]));
 
             DB::commit();
 
@@ -161,7 +188,7 @@ class TransactionController extends Controller
             Log::error('Midtrans Request Error:', [
                 'error' => $e->getMessage(),
                 'code' => $e->getCode(),
-                'params' => $params,
+                'params' => $params ?? null,
                 'response' => $e->getResponse() ? $e->getResponse()->getBody()->getContents() : null,
             ]);
             return response()->json(['error' => 'Failed to create transaction: ' . $e->getMessage()], 500);

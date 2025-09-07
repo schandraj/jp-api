@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\CertificateDownload;
 use App\Models\Course;
 use App\Models\Transaction;
 use App\Models\User;
@@ -42,6 +43,7 @@ class DashboardController extends Controller
 
             $stats['registrants'] = $analytics ? $analytics->transaction_count : 0;
             $stats['revenue'] = $analytics ? number_format(($analytics->revenue ?? 0), 2) : '0.00';
+            $stats['certificate'] = CertificateDownload::count();
 
             // Calculate revenue chart data
             $currentYear = Carbon::now()->year;
