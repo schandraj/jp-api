@@ -123,6 +123,11 @@ class TransactionController extends Controller
                     'payment_method' => $paymentMethod,
                     'url' => $url,
                 ]));
+
+                $data['is_free'] = true;
+                $data['token'] = '';
+                $data['redirect_url'] = '';
+                $data['url_content'] = $url;
             } else {
                 $params = [
                     'transaction_details' => [
@@ -168,6 +173,9 @@ class TransactionController extends Controller
                     'total' => $total,
                     'url' => config('app.web_url').'/login'
                 ]));
+
+                $data['is_free'] = false;
+                $data['url_content'] = '';
             }
 
             DB::commit();
