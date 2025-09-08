@@ -108,14 +108,14 @@ class TransactionController extends Controller
                 $course = Course::find($transaction->course_id);
                 $courseTitle = $course ? $course->title : 'Unknown Course';
                 $paymentMethod = 'Free'; // Assuming Midtrans as the payment method; adjust if dynamic
-                $url = config('app.web_url');
-                if ($course->type === 'CBT') {
-                    $url = $url . '/student/cbt-instruction/' . $course->id;
-                } elseif ($course->type === 'Course') {
-                    $url = $url . '/student/course-content/' . $course->id;
-                } elseif ($course->type === 'Live_Teaching') {
-                    $url = $url . '/student/live-event/' . $course->id;
-                }
+                $url = config('app.web_url') . '/login';
+//                if ($course->type === 'CBT') {
+//                    $url = $url . '/student/cbt-instruction/' . $course->id;
+//                } elseif ($course->type === 'Course') {
+//                    $url = $url . '/student/course-content/' . $course->id;
+//                } elseif ($course->type === 'Live_Teaching') {
+//                    $url = $url . '/student/live-event/' . $course->id;
+//                }
                 Mail::to($transaction->email)->send(new PurchaseConfirmation([
                     'name' => $request->fullname ?? 'User',
                     'course_title' => $courseTitle,
