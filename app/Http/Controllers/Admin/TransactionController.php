@@ -39,7 +39,7 @@ class TransactionController extends Controller
             }
 
             // Fetch transactions with pagination
-            $transactions = $query->with('course')->paginate($limit);
+            $transactions = $query->with('course')->orderBy('id', 'desc')->paginate($limit);
 
             return response()->json([
                 'message' => 'Transactions retrieved successfully',
