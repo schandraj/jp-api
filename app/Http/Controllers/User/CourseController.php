@@ -206,9 +206,23 @@ class CourseController extends Controller
 
             $courses = Course::whereHas('transactions', function ($query) use ($user) {
                 $query->where('email', $user->email)->where('status', 'paid');
-            })->whereIn('type', $allowedTypes)
-                ->get()
-                ->groupBy('type');
+            })->whereIn('type', $allowedTypes)->get();
+
+            // Get courses where user has answered questions
+            $answeredCourseIds = $courses->flatMap(function ($course) use ($user) {
+                return $course->userAnswers()->where('user_id', $user->id)->exists() ? [$course->id] : [];
+            })->unique()->values();
+
+            // Group by type and add is_answered field to CBT courses
+            $courses = $courses->groupBy('type')->map(function ($typeCourses, $type) use ($answeredCourseIds) {
+                if ($type === 'CBT') {
+                    return $typeCourses->map(function ($course) use ($answeredCourseIds) {
+                        $course->is_answered = $answeredCourseIds->contains($course->id);
+                        return $course;
+                    });
+                }
+                return $typeCourses;
+            });
 
             // Ensure all allowed types are included with empty arrays if no courses
             $data = collect($allowedTypes)->mapWithKeys(function ($type) use ($courses) {

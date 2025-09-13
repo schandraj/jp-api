@@ -70,4 +70,9 @@ class Course extends Model
     {
         return $this->hasMany(Transaction::class, 'course_id');
     }
+
+    public function userAnswers()
+    {
+        return $this->hasMany(UserAnswer::class, 'course_id');
+    }
 }

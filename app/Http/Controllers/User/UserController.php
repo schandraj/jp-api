@@ -65,12 +65,13 @@ class UserController extends Controller
             // Get courses where user has answered questions
             $answeredCourseIds = UserAnswer::where('user_id', $user->id)->pluck('course_id')->unique()->values();
 
-            // Filter paidCBT to exclude courses with answers
+            // Get all paid CBT courses with is_answered flag
             $paidCBT = $transactions->where('course.type', 'CBT')
                 ->pluck('course')
                 ->unique('id')
-                ->reject(function ($course) use ($answeredCourseIds) {
-                    return $answeredCourseIds->contains($course->id);
+                ->map(function ($course) use ($answeredCourseIds) {
+                    $course->is_answered = $answeredCourseIds->contains($course->id);
+                    return $course;
                 })
                 ->values();
 
