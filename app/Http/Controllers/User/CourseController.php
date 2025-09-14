@@ -110,12 +110,17 @@ class CourseController extends Controller
     public function showLogin($id)
     {
         try {
-            $course = Course::with(['category', 'topics.lessons', 'crossSells.crossCourse' => function ($query) {
+            \Log::debug('Fetching course', ['id' => $id]);
+
+            $course = Course::with(['category', 'topics.lessons' => function ($query) {
+                $query->select('id', 'topic_id', 'name', 'video_link', 'description', 'is_premium');
+            }, 'crossSells.crossCourse' => function ($query) {
                 $query->select('id', 'title', 'image', 'category_id', 'course_level', 'price', 'status');
             }, 'benefits', 'questions'])
-                ->withCount(['questions','transactions as student_count' => function ($query) {
+                ->withCount(['questions', 'transactions as student_count' => function ($query) {
                     $query->where('status', 'paid');
-                }])->where('status', 'PUBLISHED')
+                }])
+                ->where('status', 'PUBLISHED')
                 ->findOrFail($id);
 
             $isBought = false;
@@ -162,6 +167,7 @@ class CourseController extends Controller
                 'data' => $course
             ], 200);
         } catch (\Exception $e) {
+            \Log::error('Course retrieval failed', ['id' => $id, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return response()->json(['error' => 'Course not found'], 404);
         }
     }
