@@ -272,17 +272,17 @@ class CourseController extends Controller
             $lesson = TopicLesson::findOrFail($lessonId);
 
             // Check if already watched to avoid duplicates
-            $watched = WatchedLesson::where('user_id', $user->id)->where('lesson_id', $lessonId)->first();
+            $watched = WatchedLesson::where('user_id', $user->id)->where('topic_lesson_id', $lessonId)->first();
             if (!$watched) {
                 WatchedLesson::create([
                     'user_id' => $user->id,
-                    'lesson_id' => $lessonId,
+                    'topic_lesson_id' => $lessonId,
                 ]);
             }
 
             return response()->json([
                 'message' => 'Lesson marked as watched successfully',
-                'data' => ['lesson_id' => $lessonId, 'is_watched' => true]
+                'data' => ['topic_lesson_id' => $lessonId, 'is_watched' => true]
             ], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to mark lesson as watched'], 500);
