@@ -264,7 +264,7 @@ class CourseController extends Controller
     public function markLessonAsWatched(Request $request, $lessonId)
     {
         try {
-            $user = auth()->user();
+            $user = $request->user();
             if (!$user) {
                 return response()->json(['error' => 'Unauthenticated'], 401);
             }
