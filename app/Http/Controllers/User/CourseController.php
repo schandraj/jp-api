@@ -138,6 +138,13 @@ class CourseController extends Controller
                     $paymentUrl = $pendingTransaction->redirect_url;
                 }
 
+                // Load watched status for lessons
+                $course->load(['topics.lessons' => function ($query) use ($user) {
+                    $query->withCount(['watchedBy' => function ($query) use ($user) {
+                        $query->where('user_id', $user->id);
+                    }]);
+                }]);
+
                 // Transform lessons to include is_watched
                 $course->topics->each(function ($topic) use ($user) {
                     $topic->lessons->each(function ($lesson) use ($user) {
