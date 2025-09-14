@@ -4,7 +4,9 @@ namespace App\Http\Controllers\User;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
+use App\Models\TopicLesson;
 use App\Models\Transaction;
+use App\Models\WatchedLesson;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -85,6 +87,11 @@ class CourseController extends Controller
     public function show($id)
     {
         try {
+            $user = auth()->user();
+            if (!$user) {
+                return response()->json(['error' => 'Unauthenticated'], 401);
+            }
+
             $course = Course::with(['category', 'topics.lessons', 'crossSells.crossCourse' => function ($query) {
                 $query->select('id', 'title', 'image', 'category_id', 'course_level', 'price', 'status');
             }, 'benefits', 'questions'])
@@ -95,6 +102,14 @@ class CourseController extends Controller
 
             $isBought = false;
             $course->is_bought = $isBought;
+
+            // Transform lessons to include is_watched
+            $course->topics->each(function ($topic) use ($user) {
+                $topic->lessons->each(function ($lesson) use ($user) {
+                    $lesson->is_watched = $lesson->watched_by_count > 0;
+                    unset($lesson->watched_by_count); // Optional: remove the count field if not needed
+                });
+            });
 
             return response()->json([
                 'message' => 'Course retrieved successfully',
@@ -139,6 +154,14 @@ class CourseController extends Controller
 
             $course->is_bought = $isBought;
             $course->payment_url = $paymentUrl;
+
+            // Transform lessons to include is_watched
+            $course->topics->each(function ($topic) use ($user) {
+                $topic->lessons->each(function ($lesson) use ($user) {
+                    $lesson->is_watched = $lesson->watched_by_count > 0;
+                    unset($lesson->watched_by_count); // Optional: remove the count field if not needed
+                });
+            });
 
             return response()->json([
                 'message' => 'Course retrieved successfully',
@@ -235,6 +258,34 @@ class CourseController extends Controller
             ], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to retrieve purchased courses'], 500);
+        }
+    }
+
+    public function markLessonAsWatched(Request $request, $lessonId)
+    {
+        try {
+            $user = auth()->user();
+            if (!$user) {
+                return response()->json(['error' => 'Unauthenticated'], 401);
+            }
+
+            $lesson = TopicLesson::findOrFail($lessonId);
+
+            // Check if already watched to avoid duplicates
+            $watched = WatchedLesson::where('user_id', $user->id)->where('lesson_id', $lessonId)->first();
+            if (!$watched) {
+                WatchedLesson::create([
+                    'user_id' => $user->id,
+                    'lesson_id' => $lessonId,
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Lesson marked as watched successfully',
+                'data' => ['lesson_id' => $lessonId, 'is_watched' => true]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to mark lesson as watched'], 500);
         }
     }
 }

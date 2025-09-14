@@ -58,6 +58,7 @@ Route::prefix('user')->group(function () {
     Route::get('/courses/cbt/{id}', [UserCourseController::class, 'getCbt'])->middleware(['auth:api', UserMiddleware::class]);
     Route::get('/courses/purchased/all', [UserCourseController::class, 'getPurchasedCoursesByType'])->middleware(['auth:api', UserMiddleware::class]);
     Route::post('/courses/cbt/submit-answer', [UserUserController::class, 'submitAnswers'])->middleware('auth:api');
+    Route::post('/courses/lessons/{lessonId}/watch', [UserCourseController::class, 'markLessonAsWatched']);
     Route::apiResource('categories', UserCategoryController::class);
     Route::get('/dashboard', [App\Http\Controllers\User\UserController::class, 'dashboard'])->middleware('auth:api');
     Route::get('/profile', [App\Http\Controllers\User\UserController::class, 'profile'])->middleware('auth:api');

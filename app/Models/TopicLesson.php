@@ -16,4 +16,9 @@ class TopicLesson extends Model
     {
         return $this->belongsTo(CourseTopic::class, 'topic_id');
     }
+
+    public function watchedBy()
+    {
+        return $this->belongsToMany(User::class, 'watched_lessons');
+    }
 }
