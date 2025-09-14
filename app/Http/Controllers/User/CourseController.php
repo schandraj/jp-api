@@ -87,11 +87,6 @@ class CourseController extends Controller
     public function show($id)
     {
         try {
-            $user = auth()->user();
-            if (!$user) {
-                return response()->json(['error' => 'Unauthenticated'], 401);
-            }
-
             $course = Course::with(['category', 'topics.lessons', 'crossSells.crossCourse' => function ($query) {
                 $query->select('id', 'title', 'image', 'category_id', 'course_level', 'price', 'status');
             }, 'benefits', 'questions'])
@@ -102,14 +97,6 @@ class CourseController extends Controller
 
             $isBought = false;
             $course->is_bought = $isBought;
-
-            // Transform lessons to include is_watched
-            $course->topics->each(function ($topic) use ($user) {
-                $topic->lessons->each(function ($lesson) use ($user) {
-                    $lesson->is_watched = $lesson->watched_by_count > 0;
-                    unset($lesson->watched_by_count); // Optional: remove the count field if not needed
-                });
-            });
 
             return response()->json([
                 'message' => 'Course retrieved successfully',
@@ -265,6 +252,7 @@ class CourseController extends Controller
     {
         try {
             $user = $request->user();
+            dd($user);
             if (!$user) {
                 return response()->json(['error' => 'Unauthenticated'], 401);
             }
