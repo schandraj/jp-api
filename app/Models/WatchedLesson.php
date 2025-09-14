@@ -11,7 +11,7 @@ class WatchedLesson extends Model
 
     protected $fillable = [
         'user_id',
-        'lesson_id',
+        'topic_lesson_id',
     ];
 
     /**
