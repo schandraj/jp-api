@@ -132,7 +132,6 @@ class CourseController extends Controller
                     ->where('status', 'paid')
                     ->exists();
 
-                // Get the latest pending transaction's redirect_url as payment_url
                 $pendingTransaction = Transaction::where('course_id', $id)
                     ->where('email', $user->email)
                     ->where('status', 'pending')
@@ -153,8 +152,9 @@ class CourseController extends Controller
                 // Transform lessons to include is_watched
                 $course->topics->each(function ($topic) use ($user) {
                     $topic->lessons->each(function ($lesson) use ($user) {
+                        \Log::debug('Lesson Watched Check', ['lesson_id' => $lesson->id, 'watched_by_count' => $lesson->watched_by_count]);
                         $lesson->is_watched = $lesson->watched_by_count > 0;
-                        unset($lesson->watched_by_count); // Optional: remove the count field if not needed
+                        unset($lesson->watched_by_count);
                     });
                 });
             }

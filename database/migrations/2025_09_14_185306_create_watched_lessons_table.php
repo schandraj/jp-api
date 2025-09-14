@@ -14,9 +14,9 @@ return new class extends Migration
         Schema::create('watched_lessons', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignId('lesson_id')->constrained('topic_lessons')->onDelete('cascade');
+            $table->foreignId('topic_lesson_id')->constrained('topic_lessons')->onDelete('cascade'); // Correct table name
             $table->timestamp('watched_at')->useCurrent();
-            $table->unique(['user_id', 'lesson_id']); // Prevent duplicate watches
+            $table->unique(['user_id', 'topic_lesson_id']);
             $table->timestamps();
         });
     }
