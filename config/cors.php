@@ -19,7 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['http://localhost:3000', 'https://stg-lms.jadipraktisi.com', 'http://192.168.1.2:3000'],
+    'allowed_origins' => ['http://localhost:3000', 'https://stg-lms.jadipraktisi.com', 'https://jadipraktisi.com', 'https://beta.jadipraktisi.com', 'http://192.168.1.2:3000'],
 
     'allowed_origins_patterns' => [],
 
