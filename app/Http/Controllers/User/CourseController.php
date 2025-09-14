@@ -137,18 +137,18 @@ class CourseController extends Controller
                 if ($pendingTransaction) {
                     $paymentUrl = $pendingTransaction->redirect_url;
                 }
+
+                // Transform lessons to include is_watched
+                $course->topics->each(function ($topic) use ($user) {
+                    $topic->lessons->each(function ($lesson) use ($user) {
+                        $lesson->is_watched = $lesson->watched_by_count > 0;
+                        unset($lesson->watched_by_count); // Optional: remove the count field if not needed
+                    });
+                });
             }
 
             $course->is_bought = $isBought;
             $course->payment_url = $paymentUrl;
-
-            // Transform lessons to include is_watched
-            $course->topics->each(function ($topic) use ($user) {
-                $topic->lessons->each(function ($lesson) use ($user) {
-                    $lesson->is_watched = $lesson->watched_by_count > 0;
-                    unset($lesson->watched_by_count); // Optional: remove the count field if not needed
-                });
-            });
 
             return response()->json([
                 'message' => 'Course retrieved successfully',
