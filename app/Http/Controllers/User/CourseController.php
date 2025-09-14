@@ -252,7 +252,6 @@ class CourseController extends Controller
     {
         try {
             $user = $request->user();
-            dd($user);
             if (!$user) {
                 return response()->json(['error' => 'Unauthenticated'], 401);
             }
