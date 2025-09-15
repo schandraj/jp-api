@@ -4,7 +4,9 @@ namespace App\Http\Controllers\User;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
+use App\Models\TopicLesson;
 use App\Models\Transaction;
+use App\Models\WatchedLesson;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -108,12 +110,17 @@ class CourseController extends Controller
     public function showLogin($id)
     {
         try {
-            $course = Course::with(['category', 'topics.lessons', 'crossSells.crossCourse' => function ($query) {
+            \Log::debug('Fetching course', ['id' => $id]);
+
+            $course = Course::with(['category', 'topics.lessons' => function ($query) {
+                $query->select('id', 'topic_id', 'name', 'video_link', 'description', 'is_premium');
+            }, 'crossSells.crossCourse' => function ($query) {
                 $query->select('id', 'title', 'image', 'category_id', 'course_level', 'price', 'status');
             }, 'benefits', 'questions'])
-                ->withCount(['questions','transactions as student_count' => function ($query) {
+                ->withCount(['questions', 'transactions as student_count' => function ($query) {
                     $query->where('status', 'paid');
-                }])->where('status', 'PUBLISHED')
+                }])
+                ->where('status', 'PUBLISHED')
                 ->findOrFail($id);
 
             $isBought = false;
@@ -125,7 +132,6 @@ class CourseController extends Controller
                     ->where('status', 'paid')
                     ->exists();
 
-                // Get the latest pending transaction's redirect_url as payment_url
                 $pendingTransaction = Transaction::where('course_id', $id)
                     ->where('email', $user->email)
                     ->where('status', 'pending')
@@ -135,6 +141,22 @@ class CourseController extends Controller
                 if ($pendingTransaction) {
                     $paymentUrl = $pendingTransaction->redirect_url;
                 }
+
+                // Load watched status for lessons
+                $course->load(['topics.lessons' => function ($query) use ($user) {
+                    $query->withCount(['watchedBy' => function ($query) use ($user) {
+                        $query->where('user_id', $user->id);
+                    }]);
+                }]);
+
+                // Transform lessons to include is_watched
+                $course->topics->each(function ($topic) use ($user) {
+                    $topic->lessons->each(function ($lesson) use ($user) {
+                        \Log::debug('Lesson Watched Check', ['lesson_id' => $lesson->id, 'watched_by_count' => $lesson->watched_by_count]);
+                        $lesson->is_watched = $lesson->watched_by_count > 0;
+                        unset($lesson->watched_by_count);
+                    });
+                });
             }
 
             $course->is_bought = $isBought;
@@ -145,6 +167,7 @@ class CourseController extends Controller
                 'data' => $course
             ], 200);
         } catch (\Exception $e) {
+            \Log::error('Course retrieval failed', ['id' => $id, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return response()->json(['error' => 'Course not found'], 404);
         }
     }
@@ -235,6 +258,34 @@ class CourseController extends Controller
             ], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to retrieve purchased courses'], 500);
+        }
+    }
+
+    public function markLessonAsWatched(Request $request, $lessonId)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return response()->json(['error' => 'Unauthenticated'], 401);
+            }
+
+            $lesson = TopicLesson::findOrFail($lessonId);
+
+            // Check if already watched to avoid duplicates
+            $watched = WatchedLesson::where('user_id', $user->id)->where('topic_lesson_id', $lessonId)->first();
+            if (!$watched) {
+                WatchedLesson::create([
+                    'user_id' => $user->id,
+                    'topic_lesson_id' => $lessonId,
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Lesson marked as watched successfully',
+                'data' => ['topic_lesson_id' => $lessonId, 'is_watched' => true]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to mark lesson as watched'], 500);
         }
     }
 }

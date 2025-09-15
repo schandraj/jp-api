@@ -67,4 +67,14 @@ class User extends Authenticatable
     {
         return $this->profile_picture ? Storage::url($this->profile_picture) : null;
     }
+
+    public function watchedLessons()
+    {
+        return $this->hasMany(WatchedLesson::class);
+    }
+
+    public function lessonsWatched()
+    {
+        return $this->belongsToMany(TopicLesson::class, 'watched_lessons');
+    }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -53,9 +54,16 @@ class UserController extends Controller
     {
         try {
             $user = User::findOrFail($id);
+
+            $transactions = Transaction::where('email', $user->email)->where('status', 'paid')->get();
+            $courses = $transactions->pluck('course')->unique('id')->values();
             return response()->json([
                 'message' => 'User retrieved successfully',
-                'data' => $user
+                'data' => [
+                    'user' => $user,
+                    'transactions' => $transactions,
+                    'courses' => $courses,
+                ]
             ], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'User not found'], 404);
