@@ -12,7 +12,7 @@
 <p>Metode Pembayaran: {{ $details['payment_method'] }}</p>
 <p>Kamu bisa langsung login menggunakan email akun yang telah terdaftar untuk mengakses konten:</p>
 <p><a href="{{$details['url']}}">👉 Akses Sekarang</a></p>
-<p>Jika kamu mengalami kendala saat login atau mengakses konten, tim kami siap membantu melalui <a href="mailto:cs@jadipraktisi.com">cs@jadipraktisi.com</a>.</p>
+<p>Jika kamu mengalami kendala saat login atau mengakses konten, tim kami siap membantu melalui <a href="mailto:lifeatjadipraktisi@gmail.com">lifeatjadipraktisi@gmail.com</a>, atau dapat menghubungi kami Nomor Whatsapp +6285213489432</p>
 <p>Selamat belajar! 🚀</p>
 <p>Salam hangat,<br>Tim Jadipraktisi</p>
 </body>

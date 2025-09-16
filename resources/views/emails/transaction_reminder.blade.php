@@ -11,7 +11,7 @@
 <p>Harga: Rp {{ number_format($details['total'], 0, ',', '.') }}</p>
 <p>Untuk melanjutkan pembayaran, kamu bisa login terlebih dahulu menggunakan email akun terdaftar, lalu selesaikan transaksi dari dashboard.</p>
 <p><a href="{{$details['url']}}">👉 Lanjutkan Pembayaran</a></p>
-<p>Kalau ada kendala, kami siap bantu di <a href="mailto:cs@jadipraktisi.com">cs@jadipraktisi.com</a>.</p>
+<p>Kalau ada kendala, kami siap bantu di <a href="mailto:lifeatjadipraktisi@gmail.com">lifeatjadipraktisi@gmail.com</a>, atau dapat menghubungi kami Nomor Whatsapp +6285213489432</p>
 <p>Semangat terus untuk upgrade skill-mu!</p>
 <p>Salam hangat,<br>Tim Jadipraktisi</p>
 </body>
