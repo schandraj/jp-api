@@ -125,8 +125,10 @@ class CourseController extends Controller
 
             $isBought = false;
             $paymentUrl = null;
+            $isAnswered = false;
             if (Auth::check()) {
                 $user = Auth::user();
+                $isAnswered = $course->userAnswers()->where('user_id', $user->id)->where('course_id', $id)->exists();
                 $isBought = $course->transactions()
                     ->where('email', $user->email)
                     ->where('status', 'paid')
@@ -161,6 +163,7 @@ class CourseController extends Controller
 
             $course->is_bought = $isBought;
             $course->payment_url = $paymentUrl;
+            $course->is_answered = $isAnswered;
 
             return response()->json([
                 'message' => 'Course retrieved successfully',

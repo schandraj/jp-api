@@ -422,24 +422,29 @@ class CourseController extends Controller
             'status' => 'sometimes|required|in:DRAFT,UNPUBLISHED,PUBLISHED',
             'topic' => 'sometimes|array',
             'topic.*.name' => 'required_with:topic|string',
+            'topic.*.id' => 'sometimes|exists:course_topics,id', // Allow existing topic IDs
             'topic.*.lesson' => 'required_with:topic|array',
+            'topic.*.lesson.*.id' => 'sometimes|exists:topic_lessons,id', // Allow existing lesson IDs
             'topic.*.lesson.*.name' => 'required_with:topic.*.lesson|string',
             'topic.*.lesson.*.video_link' => 'nullable|url',
             'topic.*.lesson.*.description' => 'nullable|string',
             'topic.*.lesson.*.is_premium' => 'required_with:topic.*.lesson|boolean',
             'cross_sell' => 'sometimes|array',
             'cross_sell.*.cross_course_id' => 'required_with:cross_sell|exists:courses,id',
+            'cross_sell.*.id' => 'sometimes|exists:course_cross_sells,id', // Allow existing cross-sell IDs
             'cross_sell.*.note' => 'nullable|string',
             'cross_sell.*.price' => 'required_with:cross_sell|numeric|min:0',
             'benefits' => 'sometimes|array',
             'benefits.*.id' => 'nullable|exists:benefits,id',
             'benefits.*.name' => 'required_without:benefits.*.id|string|max:255',
-            'benefits.*.icon' => 'required_without:benefits.*.icon|string|max:255',
+            'benefits.*.icon' => 'required_without:benefits.*.id|string|max:255',
             'questions' => 'sometimes|array',
+            'questions.*.id' => 'sometimes|exists:course_questions,id', // Allow existing question IDs
             'questions.*.question' => 'required_with:questions|string',
             'questions.*.discussion' => 'required_with:questions|string',
             'questions.*.normal_lab' => 'nullable|string',
             'questions.*.answers' => 'required_with:questions|array|min:1',
+            'questions.*.answers.*.id' => 'sometimes|exists:question_answers,id', // Allow existing answer IDs
             'questions.*.answers.*.choice' => 'required_with:questions.*.answers|string',
             'questions.*.answers.*.is_true' => 'required_with:questions.*.answers|boolean',
             'studied' => 'sometimes|array',
@@ -501,40 +506,82 @@ class CourseController extends Controller
                 Storage::disk('public')->delete($oldPosterPath);
             }
 
-            // Update topics and lessons (replace existing)
+            // Update topics and lessons
             if (isset($input['topic']) && !empty($input['topic'])) {
-                $course->topics()->delete(); // Cascades to lessons
+                $existingTopics = $course->topics->keyBy('id');
                 foreach ($input['topic'] as $topicData) {
-                    $topic = CourseTopic::create([
-                        'course_id' => $course->id,
-                        'name' => $topicData['name'],
-                    ]);
+                    if (isset($topicData['id']) && $existingTopics->has($topicData['id'])) {
+                        // Update existing topic
+                        $topic = $existingTopics->get($topicData['id']);
+                        $topic->update(['name' => $topicData['name']]);
+                    } else {
+                        // Create new topic
+                        $topic = CourseTopic::create([
+                            'course_id' => $course->id,
+                            'name' => $topicData['name'],
+                        ]);
+                    }
+
+                    // Handle lessons
+                    $existingLessons = $topic->lessons->keyBy('id');
                     foreach ($topicData['lesson'] as $lessonData) {
-                        TopicLesson::create([
-                            'topic_id' => $topic->id,
-                            'name' => $lessonData['name'],
-                            'video_link' => $lessonData['video_link'] ?? null,
-                            'description' => $lessonData['description'] ?? null,
-                            'is_premium' => $lessonData['is_premium'],
+                        if (isset($lessonData['id']) && $existingLessons->has($lessonData['id'])) {
+                            // Update existing lesson
+                            $lesson = $existingLessons->get($lessonData['id']);
+                            $lesson->update([
+                                'name' => $lessonData['name'],
+                                'video_link' => $lessonData['video_link'] ?? null,
+                                'description' => $lessonData['description'] ?? null,
+                                'is_premium' => $lessonData['is_premium'],
+                            ]);
+                        } else {
+                            // Create new lesson
+                            TopicLesson::create([
+                                'topic_id' => $topic->id,
+                                'name' => $lessonData['name'],
+                                'video_link' => $lessonData['video_link'] ?? null,
+                                'description' => $lessonData['description'] ?? null,
+                                'is_premium' => $lessonData['is_premium'],
+                            ]);
+                        }
+                    }
+                    // Delete lessons not in input
+                    $lessonIdsToKeep = array_column($topicData['lesson'], 'id') ?: [];
+                    $topic->lessons()->whereNotIn('id', array_filter($lessonIdsToKeep))->delete();
+                }
+                // Delete topics not in input
+                $topicIdsToKeep = array_column($input['topic'], 'id') ?: [];
+                $course->topics()->whereNotIn('id', array_filter($topicIdsToKeep))->delete();
+            }
+
+            // Update cross-sells
+            if (isset($input['cross_sell']) && !empty($input['cross_sell'])) {
+                $existingCrossSells = $course->crossSells->keyBy('id');
+                foreach ($input['cross_sell'] as $crossSellData) {
+                    if (isset($crossSellData['id']) && $existingCrossSells->has($crossSellData['id'])) {
+                        // Update existing cross-sell
+                        $crossSell = $existingCrossSells->get($crossSellData['id']);
+                        $crossSell->update([
+                            'cross_course_id' => $crossSellData['cross_course_id'],
+                            'note' => $crossSellData['note'] ?? null,
+                            'price' => $crossSellData['price'],
+                        ]);
+                    } else {
+                        // Create new cross-sell
+                        CourseCrossSell::create([
+                            'course_id' => $course->id,
+                            'cross_course_id' => $crossSellData['cross_course_id'],
+                            'note' => $crossSellData['note'] ?? null,
+                            'price' => $crossSellData['price'],
                         ]);
                     }
                 }
+                // Delete cross-sells not in input
+                $crossSellIdsToKeep = array_column($input['cross_sell'], 'id') ?: [];
+                $course->crossSells()->whereNotIn('id', array_filter($crossSellIdsToKeep))->delete();
             }
 
-            // Update cross-sells (replace existing)
-            if (isset($input['cross_sell']) && !empty($input['cross_sell'])) {
-                $course->crossSells()->delete();
-                foreach ($input['cross_sell'] as $crossSellData) {
-                    CourseCrossSell::create([
-                        'course_id' => $course->id,
-                        'cross_course_id' => $crossSellData['cross_course_id'],
-                        'note' => $crossSellData['note'] ?? null,
-                        'price' => $crossSellData['price'],
-                    ]);
-                }
-            }
-
-            // Update benefits (sync or create new)
+            // Update benefits
             if (isset($input['benefits']) && !empty($input['benefits'])) {
                 $benefitIds = [];
                 foreach ($input['benefits'] as $benefitData) {
@@ -548,27 +595,57 @@ class CourseController extends Controller
                         $benefitIds[] = $benefit->id;
                     }
                 }
-                $course->benefits()->sync($benefitIds);
+                $course->benefits()->sync($benefitIds); // Sync keeps existing and adds new
             }
 
-            // Update questions and answers (replace existing)
+            // Update questions and answers
             if (isset($input['questions']) && !empty($input['questions'])) {
-                $course->questions()->delete(); // Cascades to answers
+                $existingQuestions = $course->questions->keyBy('id');
                 foreach ($input['questions'] as $questionData) {
-                    $question = CourseQuestion::create([
-                        'course_id' => $course->id,
-                        'question' => $questionData['question'],
-                        'discussion' => $questionData['discussion'],
-                        'normal_lab' => $questionData['normal_lab'],
-                    ]);
-                    foreach ($questionData['answers'] as $answerData) {
-                        QuestionAnswer::create([
-                            'question_id' => $question->id,
-                            'choice' => $answerData['choice'],
-                            'is_true' => $answerData['is_true'],
+                    if (isset($questionData['id']) && $existingQuestions->has($questionData['id'])) {
+                        // Update existing question
+                        $question = $existingQuestions->get($questionData['id']);
+                        $question->update([
+                            'question' => $questionData['question'],
+                            'discussion' => $questionData['discussion'],
+                            'normal_lab' => $questionData['normal_lab'],
+                        ]);
+                    } else {
+                        // Create new question
+                        $question = CourseQuestion::create([
+                            'course_id' => $course->id,
+                            'question' => $questionData['question'],
+                            'discussion' => $questionData['discussion'],
+                            'normal_lab' => $questionData['normal_lab'],
                         ]);
                     }
+
+                    // Handle answers
+                    $existingAnswers = $question->answers->keyBy('id');
+                    foreach ($questionData['answers'] as $answerData) {
+                        if (isset($answerData['id']) && $existingAnswers->has($answerData['id'])) {
+                            // Update existing answer
+                            $answer = $existingAnswers->get($answerData['id']);
+                            $answer->update([
+                                'choice' => $answerData['choice'],
+                                'is_true' => $answerData['is_true'],
+                            ]);
+                        } else {
+                            // Create new answer
+                            QuestionAnswer::create([
+                                'question_id' => $question->id,
+                                'choice' => $answerData['choice'],
+                                'is_true' => $answerData['is_true'],
+                            ]);
+                        }
+                    }
+                    // Delete answers not in input
+                    $answerIdsToKeep = array_column($questionData['answers'], 'id') ?: [];
+                    $question->answers()->whereNotIn('id', array_filter($answerIdsToKeep))->delete();
                 }
+                // Delete questions not in input
+                $questionIdsToKeep = array_column($input['questions'], 'id') ?: [];
+                $course->questions()->whereNotIn('id', array_filter($questionIdsToKeep))->delete();
             }
 
             DB::commit();
