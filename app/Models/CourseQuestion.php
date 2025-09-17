@@ -18,6 +18,7 @@ class CourseQuestion extends Model
         'course_id',
         'question',
         'discussion',
+        'normal_lab'
     ];
 
     /**
