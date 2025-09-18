@@ -291,4 +291,45 @@ class CourseController extends Controller
             return response()->json(['error' => 'Failed to mark lesson as watched'], 500);
         }
     }
+
+    public function getCbtAnswered($id)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['error' => 'Unauthenticated'], 401);
+            }
+
+            // Log user and course details for debugging
+            Log::debug('Fetching CBT:', ['user_id' => $user->id, 'email' => $user->email, 'course_id' => $id]);
+
+            // Check if user has bought the course
+            $course = Course::whereHas('transactions', function ($query) use ($user) {
+                $query->where('email', $user->email)->where('status', 'paid');
+            })->with(['questions.answers' => function ($query) {
+                $query->select('id', 'question_id', 'choice');
+            }, 'userAnswers'])->findOrFail($id);
+
+            return response()->json([
+                'message' => 'Course retrieved successfully',
+                'data' => $course
+            ], 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::warning('Course Not Found or Not Purchased:', [
+                'user_id' => $user->id ?? null,
+                'course_id' => $id,
+                'email' => $user->email ?? null,
+                'error' => $e->getMessage()
+            ]);
+            return response()->json(['error' => 'Course not found or not purchased'], 404);
+        } catch (\Exception $e) {
+            Log::error('Failed to Retrieve CBT:', [
+                'user_id' => $user->id ?? null,
+                'course_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json(['error' => 'Failed to retrieve course data'], 500);
+        }
+    }
 }
