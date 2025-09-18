@@ -56,6 +56,7 @@ Route::prefix('user')->group(function () {
     Route::get('/courses/{id}', [UserCourseController::class, 'show']);
     Route::get('/courses/login/{id}', [UserCourseController::class, 'showLogin'])->middleware('auth:api');
     Route::get('/courses/cbt/{id}', [UserCourseController::class, 'getCbt'])->middleware(['auth:api', UserMiddleware::class]);
+    Route::get('/courses/cbt/answered/{id}', [UserCourseController::class, 'getCbtAnswered'])->middleware(['auth:api', UserMiddleware::class]);
     Route::get('/courses/purchased/all', [UserCourseController::class, 'getPurchasedCoursesByType'])->middleware(['auth:api', UserMiddleware::class]);
     Route::post('/courses/cbt/submit-answer', [UserUserController::class, 'submitAnswers'])->middleware('auth:api');
     Route::post('/courses/lessons/{lessonId}/watch', [UserCourseController::class, 'markLessonAsWatched'])->middleware(['auth:api', UserMiddleware::class]);
