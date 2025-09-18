@@ -306,7 +306,9 @@ class CourseController extends Controller
             // Check if user has bought the course
             $course = Course::whereHas('transactions', function ($query) use ($user) {
                 $query->where('email', $user->email)->where('status', 'paid');
-            })->with(['questions.answers', 'userAnswers'])->findOrFail($id);
+            })->with(['questions.answers', 'userAnswers' => function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+            }])->findOrFail($id);
 
             return response()->json([
                 'message' => 'Course retrieved successfully',
