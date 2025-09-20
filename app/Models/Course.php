@@ -75,4 +75,9 @@ class Course extends Model
     {
         return $this->hasMany(UserAnswer::class, 'course_id');
     }
+
+    public function certificateDownloads()
+    {
+        return $this->hasMany(CertificateDownload::class, 'course_id');
+    }
 }

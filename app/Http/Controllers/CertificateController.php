@@ -16,6 +16,7 @@ class CertificateController extends Controller
         // Validate request data
         $validator = Validator::make($request->all(), [
             'course_id' => 'required|exists:courses,id',
+            'name' => 'required|string',
         ]);
 
         if ($validator->fails()) {
@@ -29,6 +30,7 @@ class CertificateController extends Controller
             }
 
             $courseId = $request->input('course_id');
+            $name = $request->input('name');
 
             // Check if user has bought the course (optional, but recommended)
             $hasBought = Transaction::where('email', $user->email)->where('course_id', $courseId)->where('status', 'paid')->exists();
@@ -48,6 +50,7 @@ class CertificateController extends Controller
             CertificateDownload::create([
                 'user_id' => $user->id,
                 'course_id' => $courseId,
+                'name' => $name,
             ]);
 
             Log::info('Certificate Downloaded:', ['user_id' => $user->id, 'course_id' => $courseId]);

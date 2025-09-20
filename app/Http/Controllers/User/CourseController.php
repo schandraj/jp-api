@@ -126,6 +126,7 @@ class CourseController extends Controller
             $isBought = false;
             $paymentUrl = null;
             $isAnswered = false;
+            $certificateDownload = null;
             if (Auth::check()) {
                 $user = Auth::user();
                 $isAnswered = $course->userAnswers()->where('user_id', $user->id)->where('course_id', $id)->exists();
@@ -151,6 +152,12 @@ class CourseController extends Controller
                     }]);
                 }]);
 
+                // Fetch the first certificate download for the user and course
+                $certificateDownload = $course->certificateDownloads()
+                    ->where('user_id', $user->id)
+                    ->orderBy('created_at', 'desc') // Get the most recent if multiple exist
+                    ->first();
+
                 // Transform lessons to include is_watched
                 $course->topics->each(function ($topic) use ($user) {
                     $topic->lessons->each(function ($lesson) use ($user) {
@@ -164,6 +171,7 @@ class CourseController extends Controller
             $course->is_bought = $isBought;
             $course->payment_url = $paymentUrl;
             $course->is_answered = $isAnswered;
+            $course->certificate_downloads = $certificateDownload ? $certificateDownload->only(['user_id', 'course_id', 'name',]) : null;
 
             return response()->json([
                 'message' => 'Course retrieved successfully',
