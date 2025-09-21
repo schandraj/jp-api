@@ -518,6 +518,7 @@ class CourseController extends Controller
             if ($request->has('topic')) {
                 if (!empty($input['topic'])) {
                     $existingTopics = $course->topics->keyBy('id');
+                    $keptTopicIds = [];
                     foreach ($input['topic'] as $topicData) {
                         if (isset($topicData['id']) && $existingTopics->has($topicData['id'])) {
                             // Update existing topic
@@ -530,9 +531,12 @@ class CourseController extends Controller
                                 'name' => $topicData['name'],
                             ]);
                         }
+                        // Collect topic id to keep
+                        $keptTopicIds[] = $topic->id;
 
                         // Handle lessons
                         $existingLessons = $topic->lessons->keyBy('id');
+                        $keptLessonIds = [];
                         foreach ($topicData['lesson'] as $lessonData) {
                             if (isset($lessonData['id']) && $existingLessons->has($lessonData['id'])) {
                                 // Update existing lesson
@@ -545,7 +549,7 @@ class CourseController extends Controller
                                 ]);
                             } else {
                                 // Create new lesson
-                                TopicLesson::create([
+                                $lesson = TopicLesson::create([
                                     'topic_id' => $topic->id,
                                     'name' => $lessonData['name'],
                                     'video_link' => $lessonData['video_link'] ?? null,
@@ -553,14 +557,14 @@ class CourseController extends Controller
                                     'is_premium' => $lessonData['is_premium'],
                                 ]);
                             }
+                            // Collect lesson id to keep
+                            $keptLessonIds[] = $lesson->id;
                         }
-                        // Delete lessons not in input
-                        $lessonIdsToKeep = array_column($topicData['lesson'], 'id') ?: [];
-                        $topic->lessons()->whereNotIn('id', array_filter($lessonIdsToKeep))->delete();
+                        // Delete lessons not processed in this update
+                        $topic->lessons()->whereNotIn('id', array_filter($keptLessonIds))->delete();
                     }
-                    // Delete topics not in input
-                    $topicIdsToKeep = array_column($input['topic'], 'id') ?: [];
-                    $course->topics()->whereNotIn('id', array_filter($topicIdsToKeep))->delete();
+                    // Delete topics not processed in this update
+                    $course->topics()->whereNotIn('id', array_filter($keptTopicIds))->delete();
                 } else {
                     // Explicitly clear all topics if provided as an empty array
                     $course->topics()->delete();
@@ -571,6 +575,7 @@ class CourseController extends Controller
             if ($request->has('cross_sell')) {
                 if (!empty($input['cross_sell'])) {
                     $existingCrossSells = $course->crossSells->keyBy('id');
+                    $keptCrossSellIds = [];
                     foreach ($input['cross_sell'] as $crossSellData) {
                         if (isset($crossSellData['id']) && $existingCrossSells->has($crossSellData['id'])) {
                             // Update existing cross-sell
@@ -582,17 +587,18 @@ class CourseController extends Controller
                             ]);
                         } else {
                             // Create new cross-sell
-                            CourseCrossSell::create([
+                            $crossSell = CourseCrossSell::create([
                                 'course_id' => $course->id,
                                 'cross_course_id' => $crossSellData['cross_course_id'],
                                 'note' => $crossSellData['note'] ?? null,
                                 'price' => $crossSellData['price'],
                             ]);
                         }
+                        // Collect cross-sell id to keep
+                        $keptCrossSellIds[] = $crossSell->id;
                     }
-                    // Delete cross-sells not in input
-                    $crossSellIdsToKeep = array_column($input['cross_sell'], 'id') ?: [];
-                    $course->crossSells()->whereNotIn('id', array_filter($crossSellIdsToKeep))->delete();
+                    // Delete cross-sells not processed in this update
+                    $course->crossSells()->whereNotIn('id', array_filter($keptCrossSellIds))->delete();
                 } else {
                     // Explicit clear when provided as empty array
                     $course->crossSells()->delete();
@@ -625,6 +631,7 @@ class CourseController extends Controller
             if ($request->has('questions')) {
                 if (!empty($input['questions'])) {
                     $existingQuestions = $course->questions->keyBy('id');
+                    $keptQuestionIds = [];
                     foreach ($input['questions'] as $questionData) {
                         if (isset($questionData['id']) && $existingQuestions->has($questionData['id'])) {
                             // Update existing question
@@ -643,9 +650,12 @@ class CourseController extends Controller
                                 'normal_lab' => $questionData['normal_lab'],
                             ]);
                         }
+                        // Collect question id to keep
+                        $keptQuestionIds[] = $question->id;
 
                         // Handle answers
                         $existingAnswers = $question->answers->keyBy('id');
+                        $keptAnswerIds = [];
                         foreach ($questionData['answers'] as $answerData) {
                             if (isset($answerData['id']) && $existingAnswers->has($answerData['id'])) {
                                 // Update existing answer
@@ -656,20 +666,20 @@ class CourseController extends Controller
                                 ]);
                             } else {
                                 // Create new answer
-                                QuestionAnswer::create([
+                                $answer = QuestionAnswer::create([
                                     'question_id' => $question->id,
                                     'choice' => $answerData['choice'],
                                     'is_true' => $answerData['is_true'],
                                 ]);
                             }
+                            // Collect answer id to keep
+                            $keptAnswerIds[] = $answer->id;
                         }
-                        // Delete answers not in input
-                        $answerIdsToKeep = array_column($questionData['answers'], 'id') ?: [];
-                        $question->answers()->whereNotIn('id', array_filter($answerIdsToKeep))->delete();
+                        // Delete answers not processed in this update
+                        $question->answers()->whereNotIn('id', array_filter($keptAnswerIds))->delete();
                     }
-                    // Delete questions not in input
-                    $questionIdsToKeep = array_column($input['questions'], 'id') ?: [];
-                    $course->questions()->whereNotIn('id', array_filter($questionIdsToKeep))->delete();
+                    // Delete questions not processed in this update
+                    $course->questions()->whereNotIn('id', array_filter($keptQuestionIds))->delete();
                 } else {
                     // Explicit clear when provided as empty array
                     $course->questions()->delete();
