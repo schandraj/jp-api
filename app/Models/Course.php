@@ -17,6 +17,7 @@ class Course extends Model
         'image',
         'link_ebook',
         'link_group',
+        'link_record',
         'slug',
         'price',
         'discount_type',
